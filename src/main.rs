@@ -15,7 +15,11 @@ use zinnia::{
     repositories::{AlertRepository, BatteryRepository, DeviceAccessTokenRepository, DeviceRepository, UserRepository},
     routes,
     security::{JwtManager, Secrets},
-    services::{AlertService, AuthService, BatteryService, CacheService, DeviceAccessTokenService, DeviceService, UserService},
+    services::{
+        AlertService, AuthService, BatteryService, CacheService, DeviceAccessTokenService, 
+        DeviceService, EmailService, RecaptchaService, RegistrationSecurityService, 
+        UserService, VerificationService,
+    },
 };
 
 #[actix_web::main]
@@ -88,6 +92,24 @@ async fn main() -> std::io::Result<()> {
         redis_pool.clone(),
     ));
 
+    // 初始化注册安全服务
+    let email_service = Arc::new(
+        EmailService::new(&settings, redis_pool.clone())
+            .expect("邮件服务初始化失败")
+    );
+    let verification_service = Arc::new(VerificationService::new(
+        redis_pool.clone(),
+        email_service.clone(),
+        &settings,
+    ));
+    let recaptcha_service = Arc::new(RecaptchaService::new(&settings));
+    let registration_security_service = Arc::new(RegistrationSecurityService::new(
+        redis_pool.clone(),
+        &settings,
+    ));
+
+    info!("✅ 安全服务初始化完成");
+
     let server_addr = settings.server_addr();
     let workers = if settings.server.workers == 0 {
         num_cpus::get()
@@ -130,6 +152,10 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(cache_service.clone()))
             .app_data(web::Data::new(user_service.clone()))
             .app_data(web::Data::new(device_token_service.clone()))
+            .app_data(web::Data::new(email_service.clone()))
+            .app_data(web::Data::new(verification_service.clone()))
+            .app_data(web::Data::new(recaptcha_service.clone()))
+            .app_data(web::Data::new(registration_security_service.clone()))
             // 配置路由
             .configure(routes::configure)
     })

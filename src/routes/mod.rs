@@ -23,7 +23,14 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                         .route("/token", web::post().to(handlers::authenticate))
                         .route("/refresh", web::post().to(handlers::refresh_token))
                         .route("/revoke", web::post().to(handlers::revoke_token))
-                        .route("/logout", web::post().to(handlers::logout)),
+                        .route("/logout", web::post().to(handlers::logout))
+                        // 验证相关路由（公开）
+                        .route("/recaptcha/config", web::get().to(handlers::get_recaptcha_config))
+                        .route("/registration/config", web::get().to(handlers::get_registration_security_config))
+                        .route("/verification/send", web::post().to(handlers::send_verification_code))
+                        .route("/verification/verify", web::post().to(handlers::verify_code))
+                        .route("/password-reset/send", web::post().to(handlers::send_password_reset_code))
+                        .route("/password-reset/confirm", web::post().to(handlers::confirm_password_reset)),
                 )
                 // 用户路由
                 .service(

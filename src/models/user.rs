@@ -72,7 +72,7 @@ pub struct UserRefreshToken {
     pub created_at: DateTime<Utc>,
 }
 
-/// 用户注册请求
+/// 用户注册请求（第一步：发送验证码）
 #[derive(Debug, Clone, Deserialize, Validate)]
 pub struct RegisterRequest {
     #[validate(email(message = "邮箱格式无效"))]
@@ -88,6 +88,42 @@ pub struct RegisterRequest {
     /// 确认密码
     #[validate(length(min = 8, max = 128, message = "密码长度应在 8-128 字符之间"))]
     pub confirm_password: String,
+    
+    /// reCAPTCHA 响应令牌（如果启用）
+    #[serde(default)]
+    pub recaptcha_token: Option<String>,
+    
+    /// 邮箱验证码（如果启用邮箱验证）
+    #[serde(default)]
+    pub verification_code: Option<String>,
+}
+
+/// 发送验证码请求
+#[derive(Debug, Clone, Deserialize, Validate)]
+pub struct SendVerificationCodeRequest {
+    #[validate(email(message = "邮箱格式无效"))]
+    pub email: String,
+    
+    /// reCAPTCHA 响应令牌
+    #[serde(default)]
+    pub recaptcha_token: Option<String>,
+}
+
+/// 验证验证码请求
+#[derive(Debug, Clone, Deserialize, Validate)]
+pub struct VerifyCodeRequest {
+    #[validate(email(message = "邮箱格式无效"))]
+    pub email: String,
+    
+    #[validate(length(equal = 6, message = "验证码应为6位数字"))]
+    pub code: String,
+}
+
+/// 验证码发送响应
+#[derive(Debug, Clone, Serialize)]
+pub struct VerificationCodeResponse {
+    pub message: String,
+    pub expires_in_minutes: u64,
 }
 
 fn validate_username(username: &str) -> Result<(), validator::ValidationError> {

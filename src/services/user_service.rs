@@ -359,6 +359,34 @@ impl UserService {
         Ok(())
     }
 
+    /// 通过邮箱重置密码
+    pub async fn reset_password_by_email(
+        &self,
+        email: &str,
+        new_password: &str,
+    ) -> Result<(), AppError> {
+        // 查找用户
+        let user = self
+            .user_repo
+            .find_by_email(email)
+            .await?
+            .ok_or_else(|| AppError::NotFound("用户不存在".to_string()))?;
+
+        // 检查新密码强度
+        check_password_strength(new_password)?;
+
+        // 更新密码
+        let new_hash = hash_password(new_password)?;
+        self.user_repo.update_password(user.id, &new_hash).await?;
+
+        // 登出所有设备
+        self.user_repo.delete_all_refresh_tokens(user.id).await?;
+
+        tracing::info!(user_id = %user.id, email = %email, "用户密码已通过邮箱重置");
+
+        Ok(())
+    }
+
     // ========== 设备共享 ==========
 
     /// 共享设备给用户

@@ -98,4 +98,48 @@ impl RedisPool {
             .await
             .map_err(AppError::RedisError)
     }
+
+    /// 获取 key 的剩余 TTL（秒）
+    pub async fn ttl(&self, key: &str) -> Result<i64, AppError> {
+        let mut conn = self.manager.clone();
+        redis::cmd("TTL")
+            .arg(key)
+            .query_async(&mut conn)
+            .await
+            .map_err(AppError::RedisError)
+    }
+
+    /// 递增计数器
+    pub async fn incr(&self, key: &str) -> Result<i64, AppError> {
+        let mut conn = self.manager.clone();
+        redis::cmd("INCR")
+            .arg(key)
+            .query_async(&mut conn)
+            .await
+            .map_err(AppError::RedisError)
+    }
+
+    /// 递增计数器并设置过期时间（如果是新 key）
+    pub async fn incr_ex(&self, key: &str, expiry_seconds: u64) -> Result<i64, AppError> {
+        let mut conn = self.manager.clone();
+        
+        // 先递增
+        let count: i64 = redis::cmd("INCR")
+            .arg(key)
+            .query_async(&mut conn)
+            .await
+            .map_err(AppError::RedisError)?;
+        
+        // 如果是第一次（count == 1），设置过期时间
+        if count == 1 {
+            let _: () = redis::cmd("EXPIRE")
+                .arg(key)
+                .arg(expiry_seconds)
+                .query_async(&mut conn)
+                .await
+                .map_err(AppError::RedisError)?;
+        }
+        
+        Ok(count)
+    }
 }

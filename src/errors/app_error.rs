@@ -30,6 +30,10 @@ pub enum AppError {
     #[error("请求过于频繁")]
     RateLimited(String),
 
+    // 限流错误 (429) - 别名，用于更明确的语义
+    #[error("超出限制")]
+    RateLimitExceeded(String),
+
     // 数据库错误 (500)
     #[error("数据库错误")]
     DatabaseError(#[from] sqlx::Error),
@@ -65,6 +69,7 @@ impl ResponseError for AppError {
             AppError::ValidationError(_) => StatusCode::BAD_REQUEST,
             AppError::Conflict(_) => StatusCode::CONFLICT,
             AppError::RateLimited(_) => StatusCode::TOO_MANY_REQUESTS,
+            AppError::RateLimitExceeded(_) => StatusCode::TOO_MANY_REQUESTS,
             AppError::DatabaseError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::RedisError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -84,6 +89,7 @@ impl ResponseError for AppError {
             AppError::ValidationError(msg) => msg.clone(),
             AppError::Conflict(msg) => msg.clone(),
             AppError::RateLimited(_) => "请求过于频繁，请稍后重试".to_string(),
+            AppError::RateLimitExceeded(msg) => msg.clone(),
             // 内部错误：隐藏具体细节
             AppError::DatabaseError(_) => "服务暂时不可用".to_string(),
             AppError::RedisError(_) => "服务暂时不可用".to_string(),

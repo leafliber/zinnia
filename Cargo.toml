@@ -66,6 +66,12 @@ base64 = "0.21"
 # TLS
 rustls = "0.22"
 
+# HTTP 客户端（用于 reCAPTCHA 验证和邮件服务）
+reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
+
+# 邮件发送
+lettre = { version = "0.11", default-features = false, features = ["tokio1-rustls-tls", "builder", "smtp-transport", "hostname"] }
+
 # 工具
 once_cell = "1"
 futures = "0.3"
