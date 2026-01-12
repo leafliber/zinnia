@@ -1,0 +1,88 @@
+[package]
+name = "zinnia"
+version = "0.1.0"
+edition = "2021"
+authors = ["Zinnia Team"]
+description = "高性能时间序列后端服务 - 设备电量监控与预警系统"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/yourusername/zinnia"
+
+[dependencies]
+# Web 框架
+actix-web = "4"
+actix-rt = "2"
+actix-cors = "0.7"
+
+# 异步运行时
+tokio = { version = "1", features = ["full"] }
+
+# 数据库
+sqlx = { version = "0.8", features = ["runtime-tokio", "tls-rustls", "postgres", "chrono", "uuid"] }
+
+# Redis
+redis = { version = "0.27", features = ["tokio-comp", "connection-manager"] }
+
+# 序列化
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# 配置管理
+config = "0.14"
+dotenvy = "0.15"
+
+# 日志和追踪
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-actix-web = "0.7"
+
+# 错误处理
+thiserror = "1"
+anyhow = "1"
+
+# 时间处理
+chrono = { version = "0.4", features = ["serde"] }
+
+# 数据验证
+validator = { version = "0.16", features = ["derive"] }
+
+# 限流
+governor = "0.6"
+
+# 认证和加密
+jsonwebtoken = "9"
+argon2 = "0.5"
+ring = "0.17"
+secrecy = { version = "0.8", features = ["serde"] }
+sha2 = "0.10"
+
+# UUID
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# 安全随机数
+rand = "0.8"
+base64 = "0.21"
+
+# TLS
+rustls = "0.22"
+
+# 工具
+once_cell = "1"
+futures = "0.3"
+num_cpus = "1"
+lazy_static = "1"
+regex = "1"
+
+[dev-dependencies]
+# 测试工具
+reqwest = { version = "0.11", features = ["json"] }
+tokio-test = "0.4"
+fake = "2"
+testcontainers = "0.15"
+serial_test = "3"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+strip = true

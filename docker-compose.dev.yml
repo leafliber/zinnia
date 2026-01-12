@@ -1,0 +1,77 @@
+version: '3.9'
+
+# 开发环境配置
+# 使用: docker-compose -f docker-compose.dev.yml up -d
+
+services:
+  # =====================================
+  # TimescaleDB (开发环境)
+  # =====================================
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: zinnia-timescaledb-dev
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=zinnia
+      - POSTGRES_PASSWORD=dev_password
+      - POSTGRES_DB=zinnia
+    volumes:
+      - timescaledb_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zinnia -d zinnia"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  # =====================================
+  # Redis (开发环境)
+  # =====================================
+  redis:
+    image: redis:7-alpine
+    container_name: zinnia-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass dev_password --appendonly yes
+    volumes:
+      - redis_dev_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "dev_password", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # =====================================
+  # Adminer (数据库管理界面)
+  # =====================================
+  adminer:
+    image: adminer:latest
+    container_name: zinnia-adminer
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    depends_on:
+      - timescaledb
+
+  # =====================================
+  # Redis Commander (Redis 管理界面)
+  # =====================================
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: zinnia-redis-commander
+    restart: unless-stopped
+    ports:
+      - "8082:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379:0:dev_password
+    depends_on:
+      - redis
+
+volumes:
+  timescaledb_dev_data:
+    driver: local
+  redis_dev_data:
+    driver: local

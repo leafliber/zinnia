@@ -1,0 +1,40 @@
+# Rust 编译输出
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 环境和密钥文件（绝不提交）
+.env
+.env.local
+.env.production
+*.pem
+*.key
+*.crt
+*.p12
+secrets/
+
+# 日志文件
+*.log
+logs/
+
+# 数据库文件
+*.db
+*.sqlite
+
+# macOS
+.DS_Store
+
+# 测试覆盖率
+coverage/
+*.profraw
+*.profdata
+
+# 文档生成
+/doc/

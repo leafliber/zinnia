@@ -1,0 +1,32 @@
+# 生产环境配置
+
+[server]
+host = "0.0.0.0"
+port = 8080
+workers = 0                   # 0 = 自动检测 CPU 核心数
+
+[database]
+max_connections = 50
+min_connections = 10
+connect_timeout_seconds = 10
+idle_timeout_seconds = 300
+require_ssl = true
+
+[redis]
+pool_size = 20
+connect_timeout_seconds = 3
+
+[jwt]
+expiry_seconds = 900          # 15 分钟
+refresh_expiry_days = 7
+issuer = "zinnia"
+audience = "zinnia-api"
+
+[rate_limit]
+requests_per_minute = 60
+burst_size = 10
+login_attempts_per_minute = 5
+
+[logging]
+level = "info"
+format = "json"
