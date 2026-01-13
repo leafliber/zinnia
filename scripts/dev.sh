@@ -5,11 +5,54 @@
 
 set -e
 
+# Detect container runtime and compose command (docker or podman)
+detect_container_tool() {
+    DOCKER_CMD=""
+    COMPOSE=""
+
+    if command -v podman >/dev/null 2>&1 && command -v podman-compose >/dev/null 2>&1; then
+        DOCKER_CMD="podman"
+        COMPOSE="podman-compose"
+    elif command -v docker >/dev/null 2>&1; then
+        DOCKER_CMD="docker"
+        if docker compose version >/dev/null 2>&1; then
+            COMPOSE="docker compose"
+        elif command -v docker-compose >/dev/null 2>&1; then
+            COMPOSE="docker-compose"
+        else
+            COMPOSE="docker compose"
+        fi
+    fi
+
+    if [ -z "${DOCKER_CMD}" ] || [ -z "${COMPOSE}" ]; then
+        echo "Neither docker nor podman+podman-compose found. Please install one of them." >&2
+        exit 1
+    fi
+
+    export DOCKER_CMD COMPOSE
+}
+
+detect_container_tool
+
 case "$1" in
+    # 删除 Docker 卷（开发环境）
+    delete-volumes)
+        echo "🧹 删除 Docker 卷（将丢失 TimescaleDB/Redis 数据）"
+        read -p "确认删除 dev 卷并移除相关数据? [y/N] " confirm
+        if [[ $confirm == [yY] ]]; then
+            echo "  ⚠️ 停止并移除容器并删除卷..."
+            eval "$COMPOSE -f docker-compose.dev.yml down -v" || true
+            echo "  ⚠️ 删除命名卷 timescaledb_dev_data 和 redis_dev_data（如存在）..."
+            $DOCKER_CMD volume rm -f timescaledb_dev_data redis_dev_data 2>/dev/null || true
+            echo "✅ 卷已删除"
+        else
+            echo "❌ 已取消"
+        fi
+        ;;
     # 启动开发环境
     start)
         echo "🚀 启动开发环境..."
-        docker compose -f docker-compose.dev.yml up -d
+        eval "$COMPOSE -f docker-compose.dev.yml up -d"
         echo "✅ Docker 服务已启动"
         echo ""
         echo "📍 服务地址:"
@@ -20,7 +63,7 @@ case "$1" in
     # 停止开发环境
     stop)
         echo "🛑 停止开发环境..."
-        docker compose -f docker-compose.dev.yml down
+        eval "$COMPOSE -f docker-compose.dev.yml down"
         echo "✅ Docker 服务已停止"
         ;;
 
@@ -32,7 +75,7 @@ case "$1" in
 
     # 查看日志
     logs)
-        docker compose -f docker-compose.dev.yml logs -f ${2:-}
+        eval "$COMPOSE -f docker-compose.dev.yml logs -f ${2:-}"
         ;;
 
     # 运行数据库迁移
@@ -57,9 +100,9 @@ case "$1" in
         read -p "确认继续? [y/N] " confirm
         if [[ $confirm == [yY] ]]; then
             export DATABASE_URL="postgres://zinnia:dev_password@localhost:5432/zinnia"
-            docker exec zinnia-timescaledb-dev psql -U zinnia -d postgres -c "DROP DATABASE IF EXISTS zinnia;"
-            docker exec zinnia-timescaledb-dev psql -U zinnia -d postgres -c "CREATE DATABASE zinnia;"
-            docker exec zinnia-timescaledb-dev psql -U zinnia -d zinnia -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
+            $DOCKER_CMD exec zinnia-timescaledb-dev psql -U zinnia -d postgres -c "DROP DATABASE IF EXISTS zinnia;"
+            $DOCKER_CMD exec zinnia-timescaledb-dev psql -U zinnia -d postgres -c "CREATE DATABASE zinnia;"
+            $DOCKER_CMD exec zinnia-timescaledb-dev psql -U zinnia -d zinnia -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
             sqlx migrate run
             echo "✅ 数据库已重置"
         else
@@ -70,13 +113,13 @@ case "$1" in
     # 进入数据库 CLI
     db-cli)
         echo "🗄️  连接到 TimescaleDB..."
-        docker exec -it zinnia-timescaledb-dev psql -U zinnia -d zinnia
+        $DOCKER_CMD exec -it zinnia-timescaledb-dev psql -U zinnia -d zinnia
         ;;
 
     # 进入 Redis CLI
     redis-cli)
         echo "📦 连接到 Redis..."
-        docker exec -it zinnia-redis-dev redis-cli -a dev_password
+        $DOCKER_CMD exec -it zinnia-redis-dev redis-cli -a dev_password
         ;;
 
     # 检查代码
@@ -118,7 +161,7 @@ case "$1" in
     clean)
         echo "🧹 清理..."
         cargo clean
-        docker compose -f docker-compose.dev.yml down -v
+        eval "$COMPOSE -f docker-compose.dev.yml down -v"
         echo "✅ 清理完成"
         ;;
 
@@ -132,6 +175,7 @@ case "$1" in
         echo "  start          启动 Docker 开发环境"
         echo "  stop           停止 Docker 开发环境"
         echo "  restart        重启 Docker 开发环境"
+        echo "  delete-volumes 删除并移除开发用卷（会丢失数据）"
         echo "  logs [服务]    查看日志"
         echo ""
         echo "  migrate        运行数据库迁移"

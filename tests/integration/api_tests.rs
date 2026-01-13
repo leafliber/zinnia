@@ -1,15 +1,11 @@
 //! API 集成测试
 
-use actix_web::{test, web, App};
-use uuid::Uuid;
-use zinnia::handlers;
-use zinnia::models::ApiResponse;
+// 顶层导入已移除。测试示例中的导入应在各自测试实现中局部添加。
 
 // 注意：这些测试需要模拟服务或使用 testcontainers
 // 以下是测试结构示例
 
 mod device_token_api {
-    use super::*;
 
     // 这些测试需要完整的应用上下文，包括数据库连接
     // 在实际运行时需要设置 test fixtures
@@ -48,7 +44,6 @@ mod device_token_api {
 }
 
 mod compat_api {
-    use super::*;
 
     #[actix_web::test]
     #[ignore = "需要数据库连接"]
@@ -80,7 +75,6 @@ mod compat_api {
 }
 
 mod device_creation {
-    use super::*;
 
     #[actix_web::test]
     #[ignore = "需要数据库连接"]

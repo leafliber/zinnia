@@ -3,6 +3,7 @@
 use crate::db::PostgresPool;
 use crate::errors::AppError;
 use crate::models::{AuditLog, AuditLogQuery};
+use uuid::Uuid;
 
 /// 审计日志仓库
 #[derive(Clone)]
@@ -83,5 +84,17 @@ impl AuditRepository {
         .await?;
 
         Ok(result.rows_affected())
+    }
+
+    /// 查找指定 `id` 的最近一条审计日志（按 `timestamp` 降序）
+    pub async fn find_latest_by_id(&self, id: Uuid) -> Result<Option<AuditLog>, AppError> {
+        let rec = sqlx::query_as::<_, AuditLog>(
+            "SELECT * FROM audit_logs WHERE id = $1 ORDER BY timestamp DESC LIMIT 1",
+        )
+        .bind(id)
+        .fetch_optional(self.pool.pool())
+        .await?;
+
+        Ok(rec)
     }
 }

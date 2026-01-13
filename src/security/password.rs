@@ -51,8 +51,9 @@ pub fn verify_password(password: &str, hash: &str) -> Result<bool, AppError> {
 
 /// 检查密码强度
 pub fn check_password_strength(password: &str) -> Result<(), AppError> {
-    let min_length = 12;
-    
+    // 新策略：最少 8 字符，包含字母和数字
+    let min_length = 8;
+
     if password.len() < min_length {
         return Err(AppError::ValidationError(format!(
             "密码长度至少需要 {} 个字符",
@@ -60,32 +61,18 @@ pub fn check_password_strength(password: &str) -> Result<(), AppError> {
         )));
     }
 
-    let has_upper = password.chars().any(|c| c.is_ascii_uppercase());
-    let has_lower = password.chars().any(|c| c.is_ascii_lowercase());
+    let has_alpha = password.chars().any(|c| c.is_ascii_alphabetic());
     let has_digit = password.chars().any(|c| c.is_ascii_digit());
-    let has_special = password.chars().any(|c| !c.is_alphanumeric());
 
-    if !has_upper {
+    if !has_alpha {
         return Err(AppError::ValidationError(
-            "密码必须包含至少一个大写字母".to_string(),
-        ));
-    }
-
-    if !has_lower {
-        return Err(AppError::ValidationError(
-            "密码必须包含至少一个小写字母".to_string(),
+            "密码必须包含至少一个字母".to_string(),
         ));
     }
 
     if !has_digit {
         return Err(AppError::ValidationError(
             "密码必须包含至少一个数字".to_string(),
-        ));
-    }
-
-    if !has_special {
-        return Err(AppError::ValidationError(
-            "密码必须包含至少一个特殊字符".to_string(),
         ));
     }
 
@@ -109,10 +96,10 @@ mod tests {
     fn test_password_strength() {
         // 太短
         assert!(check_password_strength("Short1!").is_err());
-        
-        // 缺少特殊字符
-        assert!(check_password_strength("NoSpecialChar123").is_err());
-        
+
+        // 现在策略允许没有特殊字符，但仍需字母和数字
+        assert!(check_password_strength("NoSpecialChar123").is_ok());
+
         // 合格密码
         assert!(check_password_strength("StrongPassword123!").is_ok());
     }

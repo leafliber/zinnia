@@ -7,7 +7,7 @@ CREATE TYPE audit_status AS ENUM ('success', 'failure');
 
 -- 审计日志表
 CREATE TABLE IF NOT EXISTS audit_logs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
     timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     actor_type actor_type NOT NULL,
     actor_id VARCHAR(100) NOT NULL,
@@ -20,6 +20,11 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     details JSONB,
     request_id VARCHAR(100)
 );
+
+-- 为了兼容 TimescaleDB 的 hypertable 分区规则，主键（或唯一索引）必须包含时间列
+-- 因此将主键创建为 (id, timestamp)
+ALTER TABLE audit_logs
+    ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id, timestamp);
 
 -- 索引
 CREATE INDEX idx_audit_logs_timestamp ON audit_logs(timestamp DESC);

@@ -85,9 +85,10 @@ pub struct RegisterRequest {
     #[validate(length(min = 8, max = 128, message = "密码长度应在 8-128 字符之间"))]
     pub password: String,
     
-    /// 确认密码
+    /// 确认密码（可选：若提供则必须与 `password` 一致）
+    #[serde(default)]
     #[validate(length(min = 8, max = 128, message = "密码长度应在 8-128 字符之间"))]
-    pub confirm_password: String,
+    pub confirm_password: Option<String>,
     
     /// reCAPTCHA 响应令牌（如果启用）
     #[serde(default)]

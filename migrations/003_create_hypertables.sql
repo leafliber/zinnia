@@ -39,8 +39,9 @@ GROUP BY device_id, bucket
 WITH NO DATA;
 
 -- 设置连续聚合刷新策略
+-- 增加 start_offset 使刷新窗口大于 schedule_interval (要求: start_offset - end_offset > schedule_interval)
 SELECT add_continuous_aggregate_policy('battery_hourly_stats',
-    start_offset => INTERVAL '3 hours',
+    start_offset => INTERVAL '4 hours',
     end_offset => INTERVAL '1 hour',
     schedule_interval => INTERVAL '1 hour',
     if_not_exists => TRUE
@@ -60,8 +61,9 @@ FROM battery_data
 GROUP BY device_id, bucket
 WITH NO DATA;
 
+-- 增加 start_offset 以满足刷新窗口要求
 SELECT add_continuous_aggregate_policy('battery_daily_stats',
-    start_offset => INTERVAL '2 days',
+    start_offset => INTERVAL '3 days',
     end_offset => INTERVAL '1 day',
     schedule_interval => INTERVAL '1 day',
     if_not_exists => TRUE

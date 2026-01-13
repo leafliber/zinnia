@@ -2,4 +2,15 @@
 
 mod settings;
 
-pub use settings::{Settings, SmtpSettings, RecaptchaSettings, RegistrationSettings};
+pub use settings::{
+	Settings,
+	ServerSettings,
+	DatabaseSettings,
+	RedisSettings,
+	JwtSettings,
+	RateLimitSettings,
+	LoggingSettings,
+	SmtpSettings,
+	RecaptchaSettings,
+	RegistrationSettings,
+};

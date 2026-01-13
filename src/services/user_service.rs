@@ -42,6 +42,13 @@ impl UserService {
         // 检查密码强度
         check_password_strength(&request.password)?;
 
+        // 如果提供了 confirm_password，则校验一致性
+        if let Some(ref cp) = request.confirm_password {
+            if cp != &request.password {
+                return Err(AppError::ValidationError("密码与确认密码不一致".to_string()));
+            }
+        }
+
         // 检查邮箱是否已存在
         if self.user_repo.email_exists(&request.email).await? {
             return Err(AppError::ValidationError("邮箱已被注册".to_string()));
