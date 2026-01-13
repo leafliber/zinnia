@@ -1,8 +1,16 @@
-version: '3.9'
-
-# 生产环境完整部署配置
-# 包含: Zinnia应用、TimescaleDB、Redis、Nginx反向代理
+# ===========================================
+# Zinnia 生产环境完整部署配置
+# ===========================================
+# 包含: Zinnia应用、TimescaleDB、Redis、Nginx反向代理、Certbot
 # 使用: ./scripts/deploy.sh
+#
+# 启动命令:
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+#
+# 前置条件:
+#   1. 创建 secrets/ 目录下的所有密钥文件
+#   2. 配置 .env.production 环境变量
+# ===========================================
 
 networks:
   frontend:
@@ -32,6 +40,7 @@ volumes:
 secrets:
   db_password:
     file: ./secrets/db_password
+    # 最小权限：仅 root 可读（entrypoint 以 root 运行，读取后降权）
   redis_password:
     file: ./secrets/redis_password
   jwt_secret:
@@ -94,17 +103,10 @@ services:
     restart: unless-stopped
     networks:
       - backend
-    command: >
-      sh -c "redis-server
-      --requirepass $$(cat /run/secrets/redis_password)
-      --appendonly yes
-      --maxmemory 512mb
-      --maxmemory-policy allkeys-lru
-      --save 900 1
-      --save 300 10
-      --save 60 10000"
     volumes:
       - redis_data:/data
+      - ./scripts/redis-entrypoint.sh:/usr/local/bin/redis-startup.sh:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/redis-startup.sh"]
     secrets:
       - redis_password
     healthcheck:
@@ -144,13 +146,42 @@ services:
       - frontend
       - backend
     environment:
-      RUN_MODE: production
-      SERVER__HOST: 0.0.0.0
-      SERVER__PORT: 8080
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-      DATABASE_URL: postgres://${POSTGRES_USER:-zinnia}:__DB_PASS__@timescaledb:5432/${POSTGRES_DB:-zinnia}
-      REDIS_URL: redis://:__REDIS_PASS__@redis:6379/0
+      # 应用环境
+      APP_ENV: production
       RUST_BACKTRACE: ${RUST_BACKTRACE:-0}
+      
+      # 服务器配置（ZINNIA 前缀）
+      ZINNIA_SERVER__HOST: 0.0.0.0
+      ZINNIA_SERVER__PORT: 8080
+      ZINNIA_SERVER__WORKERS: 0  # 0 = 自动检测 CPU 核心数
+      
+      # 数据库配置
+      DATABASE_URL: postgres://${POSTGRES_USER:-zinnia}:__DB_PASS__@timescaledb:5432/${POSTGRES_DB:-zinnia}?sslmode=disable
+      ZINNIA_DATABASE__MAX_CONNECTIONS: 50
+      ZINNIA_DATABASE__MIN_CONNECTIONS: 10
+      ZINNIA_DATABASE__CONNECT_TIMEOUT_SECONDS: 10
+      ZINNIA_DATABASE__IDLE_TIMEOUT_SECONDS: 300
+      ZINNIA_DATABASE__REQUIRE_SSL: false
+      
+      # Redis 配置
+      REDIS_URL: redis://:__REDIS_PASS__@redis:6379/0
+      ZINNIA_REDIS__POOL_SIZE: 20
+      ZINNIA_REDIS__CONNECT_TIMEOUT_SECONDS: 3
+      
+      # JWT 配置
+      ZINNIA_JWT__EXPIRY_SECONDS: 900
+      ZINNIA_JWT__REFRESH_EXPIRY_DAYS: 7
+      ZINNIA_JWT__ISSUER: zinnia
+      ZINNIA_JWT__AUDIENCE: zinnia-api
+      
+      # 限流配置
+      ZINNIA_RATE_LIMIT__REQUESTS_PER_MINUTE: 60
+      ZINNIA_RATE_LIMIT__BURST_SIZE: 10
+      ZINNIA_RATE_LIMIT__LOGIN_ATTEMPTS_PER_MINUTE: 5
+      
+      # 日志配置
+      ZINNIA_LOGGING__LEVEL: ${LOG_LEVEL:-info}
+      ZINNIA_LOGGING__FORMAT: json
       # SMTP 配置
       ZINNIA_SMTP__ENABLED: ${ZINNIA_SMTP__ENABLED:-false}
       ZINNIA_SMTP__HOST: ${ZINNIA_SMTP__HOST:-smtp.example.com}
@@ -183,11 +214,11 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS --max-time 3 http://localhost:8080/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf --max-time 5 http://localhost:8080/health || exit 1"]
       interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
     logging:
       driver: json-file
       options:
@@ -259,7 +290,7 @@ services:
       - certbot_conf:/etc/letsencrypt
       - certbot_data:/var/www/certbot
       - ./scripts/certbot-entrypoint.sh:/entrypoint.sh:ro
-    entrypoint: /entrypoint.sh
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
     environment:
       - DOMAIN=${DOMAIN:-localhost}
       - EMAIL=${SSL_EMAIL:-}

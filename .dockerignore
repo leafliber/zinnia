@@ -1,0 +1,79 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# CI/CD
+.github
+
+# 开发环境
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Rust 构建输出
+target/
+**/*.rs.bk
+*.pdb
+
+# 备份文件
+backups/
+*.bak
+*.backup
+*.old
+
+# 文档（除了需要的）
+docs/
+README.md
+*.md
+!Cargo.toml
+
+# 测试文件
+tests/
+benches/
+
+# 环境变量（secrets 已通过 volumes 挂载）
+.env*
+!.env.example
+
+# 日志
+*.log
+logs/
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+.directory
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# 部署脚本（不需要在容器内）
+scripts/deploy.sh
+scripts/manage.sh
+scripts/dev_*.sh
+scripts/preflight-check.sh
+
+# Docker 相关
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# Nginx 配置（已单独挂载）
+nginx/
+
+# Node modules（如果有前端）
+node_modules/

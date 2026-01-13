@@ -371,8 +371,9 @@ EOF
 build_and_start() {
     print_header "构建并启动服务"
     
-    log_info "拉取最新镜像..."
-    $COMPOSE -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull --ignore-pull-failures || true
+    log_info "拉取依赖服务镜像..."
+    # 仅拉取外部基础镜像，跳过本地构建的 app 镜像
+    $COMPOSE -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull timescaledb redis nginx certbot --ignore-pull-failures || true
     
     log_info "构建应用镜像..."
     $COMPOSE -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build --pull
