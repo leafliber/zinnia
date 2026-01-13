@@ -90,6 +90,22 @@ pub struct CreateAlertRuleRequest {
 fn default_cooldown() -> i32 { 30 }
 fn default_enabled() -> bool { true }
 
+/// 更新预警规则请求
+#[derive(Debug, Clone, Deserialize, Validate)]
+pub struct UpdateAlertRuleRequest {
+    #[validate(length(min = 1, max = 100, message = "规则名称长度应在 1-100 字符之间"))]
+    pub name: Option<String>,
+    
+    pub alert_type: Option<AlertType>,
+    pub level: Option<AlertLevel>,
+    pub threshold_value: Option<f64>,
+    
+    #[validate(range(min = 1, max = 1440, message = "冷却时间应在 1-1440 分钟之间"))]
+    pub cooldown_minutes: Option<i32>,
+    
+    pub enabled: Option<bool>,
+}
+
 /// 更新预警状态请求
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateAlertStatusRequest {

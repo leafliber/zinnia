@@ -264,45 +264,198 @@ impl UserRepository {
     pub async fn list(&self, query: &UserListQuery) -> Result<(Vec<User>, i64), AppError> {
         let offset = (query.page - 1) * query.page_size;
 
-        // 使用参数化查询
-        let mut conditions = vec!["1=1".to_string()];
-        
-        if let Some(role) = &query.role {
-            conditions.push(format!("role = '{}'", role));
+        // 使用完全参数化查询防止 SQL 注入
+        // 根据不同的筛选条件组合选择对应的查询
+        match (&query.role, query.is_active, &query.search) {
+            // 有角色 + 有状态 + 有搜索
+            (Some(role), Some(is_active), Some(search)) => {
+                let search_pattern = format!("%{}%", search);
+                let total: (i64,) = sqlx::query_as(
+                    r#"SELECT COUNT(*) FROM users 
+                       WHERE role = $1 AND is_active = $2 
+                       AND (LOWER(email) LIKE LOWER($3) OR LOWER(username) LIKE LOWER($3))"#
+                )
+                .bind(role)
+                .bind(is_active)
+                .bind(&search_pattern)
+                .fetch_one(self.pool.pool())
+                .await?;
+
+                let users = sqlx::query_as::<_, User>(
+                    r#"SELECT * FROM users 
+                       WHERE role = $1 AND is_active = $2 
+                       AND (LOWER(email) LIKE LOWER($3) OR LOWER(username) LIKE LOWER($3))
+                       ORDER BY created_at DESC LIMIT $4 OFFSET $5"#
+                )
+                .bind(role)
+                .bind(is_active)
+                .bind(&search_pattern)
+                .bind(query.page_size)
+                .bind(offset)
+                .fetch_all(self.pool.pool())
+                .await?;
+
+                Ok((users, total.0))
+            }
+            // 有角色 + 有状态
+            (Some(role), Some(is_active), None) => {
+                let total: (i64,) = sqlx::query_as(
+                    "SELECT COUNT(*) FROM users WHERE role = $1 AND is_active = $2"
+                )
+                .bind(role)
+                .bind(is_active)
+                .fetch_one(self.pool.pool())
+                .await?;
+
+                let users = sqlx::query_as::<_, User>(
+                    "SELECT * FROM users WHERE role = $1 AND is_active = $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4"
+                )
+                .bind(role)
+                .bind(is_active)
+                .bind(query.page_size)
+                .bind(offset)
+                .fetch_all(self.pool.pool())
+                .await?;
+
+                Ok((users, total.0))
+            }
+            // 有角色 + 有搜索
+            (Some(role), None, Some(search)) => {
+                let search_pattern = format!("%{}%", search);
+                let total: (i64,) = sqlx::query_as(
+                    r#"SELECT COUNT(*) FROM users 
+                       WHERE role = $1 
+                       AND (LOWER(email) LIKE LOWER($2) OR LOWER(username) LIKE LOWER($2))"#
+                )
+                .bind(role)
+                .bind(&search_pattern)
+                .fetch_one(self.pool.pool())
+                .await?;
+
+                let users = sqlx::query_as::<_, User>(
+                    r#"SELECT * FROM users 
+                       WHERE role = $1 
+                       AND (LOWER(email) LIKE LOWER($2) OR LOWER(username) LIKE LOWER($2))
+                       ORDER BY created_at DESC LIMIT $3 OFFSET $4"#
+                )
+                .bind(role)
+                .bind(&search_pattern)
+                .bind(query.page_size)
+                .bind(offset)
+                .fetch_all(self.pool.pool())
+                .await?;
+
+                Ok((users, total.0))
+            }
+            // 有状态 + 有搜索
+            (None, Some(is_active), Some(search)) => {
+                let search_pattern = format!("%{}%", search);
+                let total: (i64,) = sqlx::query_as(
+                    r#"SELECT COUNT(*) FROM users 
+                       WHERE is_active = $1 
+                       AND (LOWER(email) LIKE LOWER($2) OR LOWER(username) LIKE LOWER($2))"#
+                )
+                .bind(is_active)
+                .bind(&search_pattern)
+                .fetch_one(self.pool.pool())
+                .await?;
+
+                let users = sqlx::query_as::<_, User>(
+                    r#"SELECT * FROM users 
+                       WHERE is_active = $1 
+                       AND (LOWER(email) LIKE LOWER($2) OR LOWER(username) LIKE LOWER($2))
+                       ORDER BY created_at DESC LIMIT $3 OFFSET $4"#
+                )
+                .bind(is_active)
+                .bind(&search_pattern)
+                .bind(query.page_size)
+                .bind(offset)
+                .fetch_all(self.pool.pool())
+                .await?;
+
+                Ok((users, total.0))
+            }
+            // 只有角色
+            (Some(role), None, None) => {
+                let total: (i64,) = sqlx::query_as(
+                    "SELECT COUNT(*) FROM users WHERE role = $1"
+                )
+                .bind(role)
+                .fetch_one(self.pool.pool())
+                .await?;
+
+                let users = sqlx::query_as::<_, User>(
+                    "SELECT * FROM users WHERE role = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3"
+                )
+                .bind(role)
+                .bind(query.page_size)
+                .bind(offset)
+                .fetch_all(self.pool.pool())
+                .await?;
+
+                Ok((users, total.0))
+            }
+            // 只有状态
+            (None, Some(is_active), None) => {
+                let total: (i64,) = sqlx::query_as(
+                    "SELECT COUNT(*) FROM users WHERE is_active = $1"
+                )
+                .bind(is_active)
+                .fetch_one(self.pool.pool())
+                .await?;
+
+                let users = sqlx::query_as::<_, User>(
+                    "SELECT * FROM users WHERE is_active = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3"
+                )
+                .bind(is_active)
+                .bind(query.page_size)
+                .bind(offset)
+                .fetch_all(self.pool.pool())
+                .await?;
+
+                Ok((users, total.0))
+            }
+            // 只有搜索
+            (None, None, Some(search)) => {
+                let search_pattern = format!("%{}%", search);
+                let total: (i64,) = sqlx::query_as(
+                    r#"SELECT COUNT(*) FROM users 
+                       WHERE LOWER(email) LIKE LOWER($1) OR LOWER(username) LIKE LOWER($1)"#
+                )
+                .bind(&search_pattern)
+                .fetch_one(self.pool.pool())
+                .await?;
+
+                let users = sqlx::query_as::<_, User>(
+                    r#"SELECT * FROM users 
+                       WHERE LOWER(email) LIKE LOWER($1) OR LOWER(username) LIKE LOWER($1)
+                       ORDER BY created_at DESC LIMIT $2 OFFSET $3"#
+                )
+                .bind(&search_pattern)
+                .bind(query.page_size)
+                .bind(offset)
+                .fetch_all(self.pool.pool())
+                .await?;
+
+                Ok((users, total.0))
+            }
+            // 无筛选条件
+            (None, None, None) => {
+                let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
+                    .fetch_one(self.pool.pool())
+                    .await?;
+
+                let users = sqlx::query_as::<_, User>(
+                    "SELECT * FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2"
+                )
+                .bind(query.page_size)
+                .bind(offset)
+                .fetch_all(self.pool.pool())
+                .await?;
+
+                Ok((users, total.0))
+            }
         }
-        
-        if let Some(is_active) = query.is_active {
-            conditions.push(format!("is_active = {}", is_active));
-        }
-
-        if let Some(search) = &query.search {
-            conditions.push(format!(
-                "(LOWER(email) LIKE LOWER('%{}%') OR LOWER(username) LIKE LOWER('%{}%'))",
-                search.replace('\'', "''"),
-                search.replace('\'', "''")
-            ));
-        }
-
-        let where_clause = conditions.join(" AND ");
-
-        // 查询总数
-        let count_sql = format!("SELECT COUNT(*) FROM users WHERE {}", where_clause);
-        let total: (i64,) = sqlx::query_as(&count_sql)
-            .fetch_one(self.pool.pool())
-            .await?;
-
-        // 查询数据
-        let list_sql = format!(
-            "SELECT * FROM users WHERE {} ORDER BY created_at DESC LIMIT $1 OFFSET $2",
-            where_clause
-        );
-        let users = sqlx::query_as::<_, User>(&list_sql)
-            .bind(query.page_size)
-            .bind(offset)
-            .fetch_all(self.pool.pool())
-            .await?;
-
-        Ok((users, total.0))
     }
 
     // ========== 刷新令牌管理 ==========

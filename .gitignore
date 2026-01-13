@@ -14,11 +14,20 @@ Cargo.lock
 .env
 .env.local
 .env.production
+.env.*.local
 *.pem
 *.key
 *.crt
 *.p12
 secrets/
+nginx/certs/
+nginx/dhparam/
+
+# 备份文件
+backups/
+*.sql
+*.sql.gz
+*.dump
 
 # 日志文件
 *.log

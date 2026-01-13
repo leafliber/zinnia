@@ -13,6 +13,10 @@ repository = "https://github.com/yourusername/zinnia"
 actix-web = "4"
 actix-rt = "2"
 actix-cors = "0.7"
+actix = "0.13"
+# ⚠️ actix-web-actors 已弃用，计划迁移到 actix-ws
+# 参见: docs/MIGRATION_NOTES.md
+actix-web-actors = "4"
 
 # 异步运行时
 tokio = { version = "1", features = ["full"] }

@@ -7,21 +7,16 @@ use uuid::Uuid;
 use validator::Validate;
 
 /// 省电模式枚举
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, sqlx::Type, PartialEq)]
 #[sqlx(type_name = "power_saving_mode", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum PowerSavingMode {
+    #[default]
     Off,
     Low,
     Medium,
     High,
     Extreme,
-}
-
-impl Default for PowerSavingMode {
-    fn default() -> Self {
-        PowerSavingMode::Off
-    }
 }
 
 /// 电量数据点

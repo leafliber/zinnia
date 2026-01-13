@@ -35,20 +35,50 @@ zinnia/
 
 ## 🚀 快速开始
 
-### 1. 环境要求
+### 开发环境
+
+```bash
+# 1. 启动依赖服务
+docker-compose -f docker-compose.dev.yml up -d
+
+# 2. 运行数据库迁移
+cargo install sqlx-cli
+sqlx migrate run
+
+# 3. 启动开发服务器
+cargo run
+```
+
+### 生产部署
+
+**一键部署（推荐）：**
+
+```bash
+cd /path/to/zinnia
+chmod +x scripts/deploy.sh
+./scripts/deploy.sh
+```
+
+**详细文档：**
+- 📖 [完整部署指南](docs/PRODUCTION_DEPLOYMENT.md)
+- 🔧 使用 `scripts/manage.sh` 管理生产环境
+
+### 手动开发环境
+
+#### 1. 环境要求
 
 - Rust 1.75+
 - PostgreSQL 15+ with TimescaleDB
 - Redis 7+
 
-### 2. 配置环境变量
+#### 2. 配置环境变量
 
 ```bash
 cp .env.example .env
 # 编辑 .env 文件，填入实际配置
 ```
 
-### 3. 启动依赖服务
+#### 3. 启动依赖服务
 
 ```bash
 # 使用 Docker Compose (推荐)
@@ -68,7 +98,7 @@ docker run -d --name redis \
   redis:7-alpine --requirepass your_redis_password
 ```
 
-### 4. 运行数据库迁移
+#### 4. 运行数据库迁移
 
 ```bash
 # 安装 sqlx-cli
@@ -78,7 +108,7 @@ cargo install sqlx-cli
 sqlx migrate run
 ```
 
-### 5. 构建运行
+#### 5. 构建运行
 
 ```bash
 # 开发模式

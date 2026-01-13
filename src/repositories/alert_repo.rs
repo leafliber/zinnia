@@ -4,7 +4,7 @@ use crate::db::PostgresPool;
 use crate::errors::AppError;
 use crate::models::{
     AlertEvent, AlertListQuery, AlertRule, AlertStatus, AlertType,
-    CreateAlertRuleRequest, UpdateAlertStatusRequest,
+    CreateAlertRuleRequest, UpdateAlertRuleRequest, UpdateAlertStatusRequest,
 };
 use chrono::Utc;
 use uuid::Uuid;
@@ -70,6 +70,69 @@ impl AlertRepository {
         .await?;
 
         Ok(rule)
+    }
+
+    /// 根据 ID 获取规则
+    pub async fn get_rule_by_id(&self, rule_id: Uuid) -> Result<Option<AlertRule>, AppError> {
+        let rule = sqlx::query_as::<_, AlertRule>(
+            "SELECT * FROM alert_rules WHERE id = $1",
+        )
+        .bind(rule_id)
+        .fetch_optional(self.pool.pool())
+        .await?;
+
+        Ok(rule)
+    }
+
+    /// 更新预警规则
+    pub async fn update_rule(&self, rule_id: Uuid, request: &UpdateAlertRuleRequest) -> Result<AlertRule, AppError> {
+        let now = Utc::now();
+        
+        // 使用 COALESCE 实现部分更新
+        let rule = sqlx::query_as::<_, AlertRule>(
+            r#"
+            UPDATE alert_rules SET
+                name = COALESCE($2, name),
+                alert_type = COALESCE($3, alert_type),
+                level = COALESCE($4, level),
+                threshold_value = COALESCE($5, threshold_value),
+                cooldown_minutes = COALESCE($6, cooldown_minutes),
+                enabled = COALESCE($7, enabled),
+                updated_at = $8
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(rule_id)
+        .bind(&request.name)
+        .bind(&request.alert_type)
+        .bind(&request.level)
+        .bind(request.threshold_value)
+        .bind(request.cooldown_minutes)
+        .bind(request.enabled)
+        .bind(now)
+        .fetch_one(self.pool.pool())
+        .await
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => AppError::NotFound(format!("预警规则不存在: {}", rule_id)),
+            _ => e.into(),
+        })?;
+
+        Ok(rule)
+    }
+
+    /// 删除预警规则
+    pub async fn delete_rule(&self, rule_id: Uuid) -> Result<(), AppError> {
+        let result = sqlx::query("DELETE FROM alert_rules WHERE id = $1")
+            .bind(rule_id)
+            .execute(self.pool.pool())
+            .await?;
+
+        if result.rows_affected() == 0 {
+            return Err(AppError::NotFound(format!("预警规则不存在: {}", rule_id)));
+        }
+
+        Ok(())
     }
 
     // ========== 预警事件 ==========

@@ -7,19 +7,14 @@ use uuid::Uuid;
 use validator::Validate;
 
 /// 用户角色枚举
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, sqlx::Type, PartialEq)]
 #[sqlx(type_name = "user_role", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum UserRole {
     Admin,
+    #[default]
     User,
     Readonly,
-}
-
-impl Default for UserRole {
-    fn default() -> Self {
-        UserRole::User
-    }
 }
 
 impl std::fmt::Display for UserRole {

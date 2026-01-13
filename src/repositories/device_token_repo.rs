@@ -6,6 +6,19 @@ use crate::models::{DeviceAccessToken, TokenPermission};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
+/// 创建令牌的参数
+pub struct CreateTokenParams {
+    pub device_id: Uuid,
+    pub created_by: Uuid,
+    pub token_hash: String,
+    pub token_prefix: String,
+    pub name: String,
+    pub permission: TokenPermission,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub allowed_ips: Option<Vec<String>>,
+    pub rate_limit_per_minute: Option<i32>,
+}
+
 /// 设备访问令牌仓库
 #[derive(Clone)]
 pub struct DeviceAccessTokenRepository {
@@ -18,18 +31,7 @@ impl DeviceAccessTokenRepository {
     }
 
     /// 创建访问令牌
-    pub async fn create(
-        &self,
-        device_id: Uuid,
-        created_by: Uuid,
-        token_hash: &str,
-        token_prefix: &str,
-        name: &str,
-        permission: TokenPermission,
-        expires_at: Option<DateTime<Utc>>,
-        allowed_ips: Option<Vec<String>>,
-        rate_limit_per_minute: Option<i32>,
-    ) -> Result<DeviceAccessToken, AppError> {
+    pub async fn create(&self, params: CreateTokenParams) -> Result<DeviceAccessToken, AppError> {
         let token = sqlx::query_as::<_, DeviceAccessToken>(
             r#"
             INSERT INTO device_access_tokens 
@@ -39,15 +41,15 @@ impl DeviceAccessTokenRepository {
             RETURNING *
             "#,
         )
-        .bind(device_id)
-        .bind(created_by)
-        .bind(token_hash)
-        .bind(token_prefix)
-        .bind(name)
-        .bind(&permission)
-        .bind(expires_at)
-        .bind(&allowed_ips)
-        .bind(rate_limit_per_minute)
+        .bind(params.device_id)
+        .bind(params.created_by)
+        .bind(&params.token_hash)
+        .bind(&params.token_prefix)
+        .bind(&params.name)
+        .bind(&params.permission)
+        .bind(params.expires_at)
+        .bind(&params.allowed_ips)
+        .bind(params.rate_limit_per_minute)
         .fetch_one(self.pool.pool())
         .await?;
 

@@ -7,20 +7,15 @@ use uuid::Uuid;
 use validator::Validate;
 
 /// 设备状态枚举
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, sqlx::Type, PartialEq)]
 #[sqlx(type_name = "device_status", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum DeviceStatus {
     Online,
+    #[default]
     Offline,
     Maintenance,
     Disabled,
-}
-
-impl Default for DeviceStatus {
-    fn default() -> Self {
-        DeviceStatus::Offline
-    }
 }
 
 /// 设备实体

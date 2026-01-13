@@ -1,7 +1,8 @@
 # =====================================
 # 阶段 1: 构建阶段
 # =====================================
-FROM rust:1.75-slim-bookworm AS builder
+# 使用与开发环境一致的 Rust 版本，确保构建一致性
+FROM rust:1.92-slim-bookworm AS builder
 
 # 安装必要的构建依赖
 RUN apt-get update && apt-get install -y \

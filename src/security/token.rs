@@ -108,7 +108,7 @@ pub fn validate_token_format(token: &str) -> Result<TokenType, AppError> {
         .ok_or_else(|| AppError::ValidationError("无效的令牌格式".to_string()))?;
     
     let prefix_len = token_type.prefix().len();
-    let expected_base64_len = (token_type.random_bytes_len() * 4 + 2) / 3; // Base64 编码长度
+    let expected_base64_len = (token_type.random_bytes_len() * 4).div_ceil(3); // Base64 编码长度
     let expected_total = prefix_len + expected_base64_len;
     
     // 允许一定的长度偏差（Base64 padding）

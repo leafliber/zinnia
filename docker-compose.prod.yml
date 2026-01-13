@@ -1,0 +1,272 @@
+version: '3.9'
+
+# 生产环境完整部署配置
+# 包含: Zinnia应用、TimescaleDB、Redis、Nginx反向代理
+# 使用: ./scripts/deploy.sh
+
+networks:
+  frontend:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+  backend:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.21.0.0/24
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  certbot_data:
+    driver: local
+  certbot_conf:
+    driver: local
+  nginx_html:
+    driver: local
+
+secrets:
+  db_password:
+    file: ./secrets/db_password
+  redis_password:
+    file: ./secrets/redis_password
+  jwt_secret:
+    file: ./secrets/jwt_secret
+  encryption_key:
+    file: ./secrets/encryption_key
+  smtp_password:
+    file: ./secrets/smtp_password
+  recaptcha_secret:
+    file: ./secrets/recaptcha_secret
+
+services:
+  # =====================================
+  # TimescaleDB - 数据库服务
+  # =====================================
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: zinnia-timescaledb
+    restart: unless-stopped
+    networks:
+      - backend
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-zinnia}
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_DB: ${POSTGRES_DB:-zinnia}
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    secrets:
+      - db_password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-zinnia} -d ${POSTGRES_DB:-zinnia}"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+    security_opt:
+      - no-new-privileges:true
+
+  # =====================================
+  # Redis - 缓存服务
+  # =====================================
+  redis:
+    image: redis:7-alpine
+    container_name: zinnia-redis
+    restart: unless-stopped
+    networks:
+      - backend
+    command: >
+      sh -c "redis-server
+      --requirepass $$(cat /run/secrets/redis_password)
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000"
+    volumes:
+      - redis_data:/data
+    secrets:
+      - redis_password
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $$(cat /run/secrets/redis_password) ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    security_opt:
+      - no-new-privileges:true
+
+  # =====================================
+  # Zinnia - 主应用服务
+  # =====================================
+  zinnia:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    image: ${DOCKER_REGISTRY:-}zinnia:${IMAGE_TAG:-latest}
+    container_name: zinnia-app
+    restart: unless-stopped
+    networks:
+      - frontend
+      - backend
+    environment:
+      RUN_MODE: production
+      SERVER__HOST: 0.0.0.0
+      SERVER__PORT: 8080
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: postgres://${POSTGRES_USER:-zinnia}:__DB_PASS__@timescaledb:5432/${POSTGRES_DB:-zinnia}
+      REDIS_URL: redis://:__REDIS_PASS__@redis:6379/0
+      RUST_BACKTRACE: ${RUST_BACKTRACE:-0}
+      # SMTP 配置
+      ZINNIA_SMTP__ENABLED: ${ZINNIA_SMTP__ENABLED:-false}
+      ZINNIA_SMTP__HOST: ${ZINNIA_SMTP__HOST:-smtp.example.com}
+      ZINNIA_SMTP__PORT: ${ZINNIA_SMTP__PORT:-465}
+      ZINNIA_SMTP__USERNAME: ${ZINNIA_SMTP__USERNAME:-}
+      ZINNIA_SMTP__FROM_EMAIL: ${ZINNIA_SMTP__FROM_EMAIL:-noreply@example.com}
+      ZINNIA_SMTP__FROM_NAME: ${ZINNIA_SMTP__FROM_NAME:-Zinnia}
+      ZINNIA_SMTP__TLS: ${ZINNIA_SMTP__TLS:-true}
+      ZINNIA_SMTP__CODE_EXPIRY_SECONDS: ${ZINNIA_SMTP__CODE_EXPIRY_SECONDS:-600}
+      ZINNIA_SMTP__MAX_SENDS_PER_HOUR: ${ZINNIA_SMTP__MAX_SENDS_PER_HOUR:-30}
+      # reCAPTCHA 配置
+      ZINNIA_RECAPTCHA__ENABLED: ${ZINNIA_RECAPTCHA__ENABLED:-false}
+      ZINNIA_RECAPTCHA_SITE_KEY: ${ZINNIA_RECAPTCHA_SITE_KEY:-}
+      ZINNIA_RECAPTCHA__SCORE_THRESHOLD: ${ZINNIA_RECAPTCHA__SCORE_THRESHOLD:-0.5}
+      # 注册安全配置
+      ZINNIA_REGISTRATION__MAX_PER_IP_PER_HOUR: ${ZINNIA_REGISTRATION__MAX_PER_IP_PER_HOUR:-3}
+      ZINNIA_REGISTRATION__MAX_PER_IP_PER_DAY: ${ZINNIA_REGISTRATION__MAX_PER_IP_PER_DAY:-10}
+      ZINNIA_REGISTRATION__REQUIRE_EMAIL_VERIFICATION: ${ZINNIA_REGISTRATION__REQUIRE_EMAIL_VERIFICATION:-false}
+      ZINNIA_REGISTRATION__REQUIRE_RECAPTCHA: ${ZINNIA_REGISTRATION__REQUIRE_RECAPTCHA:-false}
+    secrets:
+      - db_password
+      - redis_password
+      - jwt_secret
+      - encryption_key
+      - smtp_password
+      - recaptcha_secret
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS --max-time 3 http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    tmpfs:
+      - /tmp:noexec,nosuid,nodev,size=100m
+
+  # =====================================
+  # Nginx - 反向代理 & SSL 终止
+  # =====================================
+  nginx:
+    image: nginx:alpine
+    container_name: zinnia-nginx
+    restart: unless-stopped
+    networks:
+      - frontend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - certbot_conf:/etc/letsencrypt:ro
+      - certbot_data:/var/www/certbot:ro
+      - nginx_html:/usr/share/nginx/html:ro
+    depends_on:
+      zinnia:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.1'
+    security_opt:
+      - no-new-privileges:true
+
+  # =====================================
+  # Certbot - SSL 证书管理
+  # =====================================
+  certbot:
+    image: certbot/certbot:latest
+    container_name: zinnia-certbot
+    volumes:
+      - certbot_conf:/etc/letsencrypt
+      - certbot_data:/var/www/certbot
+      - ./scripts/certbot-entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: /entrypoint.sh
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+      - EMAIL=${SSL_EMAIL:-}
+    depends_on:
+      - nginx
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"

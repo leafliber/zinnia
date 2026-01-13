@@ -48,7 +48,7 @@ mod tests {
         assert!(week_ago < now);
         // 由于两次 Utc::now() 调用之间有微小时间差，允许 6-7 天的范围
         let diff_days = (now - week_ago).num_days();
-        assert!(diff_days >= 6 && diff_days <= 7, "Expected 6-7 days, got {}", diff_days);
+        assert!((6..=7).contains(&diff_days), "Expected 6-7 days, got {}", diff_days);
     }
 
     #[test]

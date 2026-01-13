@@ -159,6 +159,11 @@ impl JwtManager {
         let claims = self.validate_token(token)?;
         Ok(claims.jti)
     }
+
+    /// 获取访问令牌过期秒数
+    pub fn access_expiry_seconds(&self) -> i64 {
+        self.access_expiry_seconds
+    }
 }
 
 /// 令牌对

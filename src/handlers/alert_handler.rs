@@ -2,7 +2,7 @@
 
 use crate::errors::AppError;
 use crate::models::{
-    AlertListQuery, ApiResponse, CreateAlertRuleRequest, UpdateAlertStatusRequest,
+    AlertListQuery, ApiResponse, CreateAlertRuleRequest, UpdateAlertRuleRequest, UpdateAlertStatusRequest,
 };
 use crate::services::AlertService;
 use actix_web::{web, HttpResponse};
@@ -31,6 +31,35 @@ pub async fn list_alert_rules(
     let rules = alert_service.get_enabled_rules().await?;
 
     Ok(HttpResponse::Ok().json(ApiResponse::success(rules)))
+}
+
+/// 更新预警规则
+pub async fn update_alert_rule(
+    alert_service: web::Data<Arc<AlertService>>,
+    path: web::Path<Uuid>,
+    body: web::Json<UpdateAlertRuleRequest>,
+) -> Result<HttpResponse, AppError> {
+    let rule_id = path.into_inner();
+
+    // 验证请求
+    body.validate()
+        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+
+    let rule = alert_service.update_rule(rule_id, body.into_inner()).await?;
+
+    Ok(HttpResponse::Ok().json(ApiResponse::success(rule)))
+}
+
+/// 删除预警规则
+pub async fn delete_alert_rule(
+    alert_service: web::Data<Arc<AlertService>>,
+    path: web::Path<Uuid>,
+) -> Result<HttpResponse, AppError> {
+    let rule_id = path.into_inner();
+
+    alert_service.delete_rule(rule_id).await?;
+
+    Ok(HttpResponse::NoContent().finish())
 }
 
 /// 查询预警事件列表

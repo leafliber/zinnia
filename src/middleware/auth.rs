@@ -52,6 +52,7 @@ pub enum AuthType {
 }
 
 /// JWT 认证中间件
+#[derive(Clone)]
 pub struct JwtAuth {
     jwt_manager: Arc<JwtManager>,
     redis_pool: Arc<RedisPool>,
@@ -155,6 +156,7 @@ where
 }
 
 /// API Key 认证中间件
+#[derive(Clone)]
 pub struct ApiKeyAuth {
     device_service: Arc<crate::services::DeviceService>,
 }
@@ -248,4 +250,131 @@ pub struct ApiKeyValue(pub String);
 /// 从请求中提取认证信息
 pub fn get_auth_info(req: &ServiceRequest) -> Option<AuthInfo> {
     req.extensions().get::<AuthInfo>().cloned()
+}
+
+/// JWT 或 API Key 认证中间件（支持两种认证方式）
+#[derive(Clone)]
+pub struct JwtOrApiKeyAuth {
+    jwt_manager: Arc<JwtManager>,
+    redis_pool: Arc<RedisPool>,
+    device_service: Arc<crate::services::DeviceService>,
+}
+
+impl JwtOrApiKeyAuth {
+    pub fn new(
+        jwt_manager: Arc<JwtManager>,
+        redis_pool: Arc<RedisPool>,
+        device_service: Arc<crate::services::DeviceService>,
+    ) -> Self {
+        Self {
+            jwt_manager,
+            redis_pool,
+            device_service,
+        }
+    }
+}
+
+impl<S, B> Transform<S, ServiceRequest> for JwtOrApiKeyAuth
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
+    S::Future: 'static,
+    B: 'static,
+{
+    type Response = ServiceResponse<B>;
+    type Error = Error;
+    type InitError = ();
+    type Transform = JwtOrApiKeyAuthMiddleware<S>;
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+
+    fn new_transform(&self, service: S) -> Self::Future {
+        ok(JwtOrApiKeyAuthMiddleware {
+            service: Rc::new(service),
+            jwt_manager: self.jwt_manager.clone(),
+            redis_pool: self.redis_pool.clone(),
+            device_service: self.device_service.clone(),
+        })
+    }
+}
+
+pub struct JwtOrApiKeyAuthMiddleware<S> {
+    service: Rc<S>,
+    jwt_manager: Arc<JwtManager>,
+    redis_pool: Arc<RedisPool>,
+    device_service: Arc<crate::services::DeviceService>,
+}
+
+impl<S, B> Service<ServiceRequest> for JwtOrApiKeyAuthMiddleware<S>
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
+    S::Future: 'static,
+    B: 'static,
+{
+    type Response = ServiceResponse<B>;
+    type Error = Error;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
+
+    forward_ready!(service);
+
+    fn call(&self, req: ServiceRequest) -> Self::Future {
+        let service = self.service.clone();
+        let jwt_manager = self.jwt_manager.clone();
+        let redis_pool = self.redis_pool.clone();
+        let device_service = self.device_service.clone();
+
+        Box::pin(async move {
+            // 尝试 JWT 认证
+            if let Some(auth_header) = req.headers().get(AUTHORIZATION).and_then(|h| h.to_str().ok()) {
+                if let Some(token) = auth_header.strip_prefix("Bearer ") {
+                    
+                    // 验证 JWT
+                    if let Ok(claims) = jwt_manager.validate_access_token(token) {
+                        // 检查令牌是否在黑名单中
+                        let blacklist_key = format!("token:blacklist:{}", claims.jti);
+                        let is_blacklisted: Option<String> = redis_pool.get(&blacklist_key).await?;
+                        
+                        if is_blacklisted.is_none() {
+                            // 解析用户 ID
+                            let user_id = if claims.device_id.is_none() {
+                                Uuid::parse_str(&claims.sub).ok()
+                            } else {
+                                None
+                            };
+                            
+                            // JWT 认证成功
+                            let auth_info = AuthInfo {
+                                actor_id: claims.sub.clone(),
+                                user_id,
+                                device_id: claims.device_id,
+                                role: claims.role.clone(),
+                                auth_type: AuthType::Jwt,
+                            };
+                            req.extensions_mut().insert(auth_info);
+                            return service.call(req).await;
+                        }
+                    }
+                }
+            }
+            
+            // 尝试 API Key 认证
+            if let Some(api_key) = req.headers().get("X-API-Key").and_then(|h| h.to_str().ok()) {
+                tracing::debug!(api_key = %mask_token(api_key), "尝试 API Key 认证");
+                
+                // 验证 API Key
+                if let Ok(device) = device_service.verify_by_api_key(api_key).await {
+                    let auth_info = AuthInfo {
+                        actor_id: device.id.to_string(),
+                        user_id: None,
+                        device_id: Some(device.id),
+                        role: Some("device".to_string()),
+                        auth_type: AuthType::ApiKey,
+                    };
+                    req.extensions_mut().insert(auth_info);
+                    return service.call(req).await;
+                }
+            }
+            
+            // 两种认证都失败
+            Err(AppError::Unauthorized("需要 JWT 令牌或 API Key 认证".to_string()).into())
+        })
+    }
 }

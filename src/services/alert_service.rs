@@ -3,7 +3,7 @@
 use crate::errors::AppError;
 use crate::models::{
     AlertEvent, AlertListQuery, AlertRule, AlertStatus, AlertType,
-    CreateAlertRuleRequest, PaginatedResponse, Pagination, UpdateAlertStatusRequest,
+    CreateAlertRuleRequest, PaginatedResponse, Pagination, UpdateAlertRuleRequest, UpdateAlertStatusRequest,
 };
 use crate::repositories::AlertRepository;
 use uuid::Uuid;
@@ -26,6 +26,24 @@ impl AlertService {
     /// 获取所有启用的规则
     pub async fn get_enabled_rules(&self) -> Result<Vec<AlertRule>, AppError> {
         self.alert_repo.get_enabled_rules().await
+    }
+
+    /// 获取预警规则
+    pub async fn get_rule(&self, rule_id: Uuid) -> Result<AlertRule, AppError> {
+        self.alert_repo
+            .get_rule_by_id(rule_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("预警规则不存在: {}", rule_id)))
+    }
+
+    /// 更新预警规则
+    pub async fn update_rule(&self, rule_id: Uuid, request: UpdateAlertRuleRequest) -> Result<AlertRule, AppError> {
+        self.alert_repo.update_rule(rule_id, &request).await
+    }
+
+    /// 删除预警规则
+    pub async fn delete_rule(&self, rule_id: Uuid) -> Result<(), AppError> {
+        self.alert_repo.delete_rule(rule_id).await
     }
 
     /// 触发低电量预警

@@ -5,6 +5,7 @@
 //! - 实时查询与缓存
 //! - 低电量预警
 //! - 省电模式管理
+//! - WebSocket 实时通信
 
 pub mod config;
 pub mod db;
@@ -17,5 +18,6 @@ pub mod routes;
 pub mod security;
 pub mod services;
 pub mod utils;
+pub mod websocket;
 
 pub use errors::AppError;

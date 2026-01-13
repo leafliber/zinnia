@@ -42,8 +42,8 @@ impl AuthService {
             Some(device.id),
         )?;
 
-        // 获取 Access Token 过期时间（从配置）
-        let expires_in = 900; // 15 分钟
+        // 从 JWT 管理器获取过期时间
+        let expires_in = self.jwt_manager.access_expiry_seconds();
 
         Ok(TokenPair::new(access_token, refresh_token, expires_in))
     }
@@ -76,7 +76,8 @@ impl AuthService {
             self.cache_service.blacklist_token(&claims.jti, remaining_expiry).await?;
         }
 
-        let expires_in = 900;
+        // 从 JWT 管理器获取过期时间
+        let expires_in = self.jwt_manager.access_expiry_seconds();
 
         Ok(TokenPair::new(access_token, new_refresh_token, expires_in))
     }

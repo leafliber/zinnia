@@ -14,7 +14,7 @@ pub fn validate_pagination(page: i64, page_size: i64) -> Result<(), AppError> {
         return Err(AppError::ValidationError("页码必须大于 0".to_string()));
     }
     
-    if page_size < 1 || page_size > 100 {
+    if !(1..=100).contains(&page_size) {
         return Err(AppError::ValidationError(
             "每页数量必须在 1-100 之间".to_string(),
         ));
@@ -25,7 +25,7 @@ pub fn validate_pagination(page: i64, page_size: i64) -> Result<(), AppError> {
 
 /// 验证电量值
 pub fn validate_battery_level(level: i32) -> Result<(), AppError> {
-    if level < 0 || level > 100 {
+    if !(0..=100).contains(&level) {
         return Err(AppError::ValidationError(
             "电量值必须在 0-100 之间".to_string(),
         ));
@@ -35,7 +35,7 @@ pub fn validate_battery_level(level: i32) -> Result<(), AppError> {
 
 /// 验证温度值
 pub fn validate_temperature(temp: f64) -> Result<(), AppError> {
-    if temp < -40.0 || temp > 85.0 {
+    if !(-40.0..=85.0).contains(&temp) {
         return Err(AppError::ValidationError(
             "温度值必须在 -40 到 85 摄氏度之间".to_string(),
         ));

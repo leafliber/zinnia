@@ -6,7 +6,7 @@ use crate::models::{
     AccessTokenInfo, CreateAccessTokenRequest, CreateAccessTokenResponse,
     DeviceAccessToken,
 };
-use crate::repositories::{DeviceAccessTokenRepository, DeviceRepository};
+use crate::repositories::{CreateTokenParams, DeviceAccessTokenRepository, DeviceRepository};
 use crate::security::{generate_token, verify_token, TokenType};
 use chrono::{Duration, Utc};
 use std::sync::Arc;
@@ -70,19 +70,18 @@ impl DeviceAccessTokenService {
         });
 
         // 创建令牌记录
-        let saved_token = self.token_repo
-            .create(
-                device_id,
-                user_id,
-                &token_hash,
-                &token_prefix,
-                &request.name,
-                request.permission.clone(),
-                expires_at,
-                request.allowed_ips,
-                request.rate_limit_per_minute,
-            )
-            .await?;
+        let params = CreateTokenParams {
+            device_id,
+            created_by: user_id,
+            token_hash,
+            token_prefix,
+            name: request.name.clone(),
+            permission: request.permission.clone(),
+            expires_at,
+            allowed_ips: request.allowed_ips,
+            rate_limit_per_minute: request.rate_limit_per_minute,
+        };
+        let saved_token = self.token_repo.create(params).await?;
 
         Ok(CreateAccessTokenResponse {
             id: saved_token.id,

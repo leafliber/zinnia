@@ -23,17 +23,17 @@ pub fn now() -> DateTime<Utc> {
 
 /// 生成测试设备名称
 pub fn test_device_name() -> String {
-    format!("test-device-{}", Uuid::new_v4().to_string()[..8].to_string())
+    format!("test-device-{}", &Uuid::new_v4().to_string()[..8])
 }
 
 /// 生成测试用户名
 pub fn test_username() -> String {
-    format!("testuser_{}", Uuid::new_v4().to_string()[..8].to_string())
+    format!("testuser_{}", &Uuid::new_v4().to_string()[..8])
 }
 
 /// 生成测试邮箱
 pub fn test_email() -> String {
-    format!("test_{}@example.com", Uuid::new_v4().to_string()[..8].to_string())
+    format!("test_{}@example.com", &Uuid::new_v4().to_string()[..8])
 }
 
 /// 断言结果是成功的

@@ -7,19 +7,14 @@ use uuid::Uuid;
 use validator::Validate;
 
 /// 令牌权限枚举
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, sqlx::Type, PartialEq)]
 #[sqlx(type_name = "token_permission", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum TokenPermission {
     Read,   // 只读：只能查询数据
+    #[default]
     Write,  // 只写：只能上报数据
     All,    // 全部：读写都可以
-}
-
-impl Default for TokenPermission {
-    fn default() -> Self {
-        TokenPermission::Write
-    }
 }
 
 impl std::fmt::Display for TokenPermission {

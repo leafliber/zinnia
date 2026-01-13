@@ -15,7 +15,8 @@
 5. [电量数据接口](#电量数据接口)
 6. [预警接口](#预警接口)
 7. [健康检查接口](#健康检查接口)
-8. [错误码参考](#错误码参考)
+8. [WebSocket 接口](#websocket-接口)
+9. [错误码参考](#错误码参考)
 
 ---
 
@@ -80,6 +81,8 @@
 
 ## 认证机制
 
+Zinnia 采用**双令牌架构**：API Key（设备长期凭据）+ JWT（短期访问令牌）。
+
 ### 用户认证（JWT）
 
 用户通过登录获取 JWT 令牌，在请求头中携带：
@@ -92,15 +95,60 @@ Authorization: Bearer <access_token>
 - `access_token`: 访问令牌，有效期 15 分钟
 - `refresh_token`: 刷新令牌，有效期 7 天
 
-### 设备认证（API Key）
+### 设备认证（API Key 与 JWT）
 
-设备通过 API Key 认证，在请求头中携带：
+设备有两种认证方式：
+
+#### 方式 1：直接使用 API Key（兼容模式）
+
+在请求头中携带 API Key：
 
 ```
-X-API-Key: <api_key>
+Authorization: Bearer zdat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-> ⚠️ API Key 仅在设备创建时返回一次，请妥善保管。
+> ⚠️ API Key 仅在创建时返回一次，请妥善保管。
+
+#### 方式 2：API Key 换取 JWT（推荐）
+
+更安全的方式是用 API Key 换取短期 JWT：
+
+**端点**: `POST /api/v1/auth/exchange`
+
+**请求体**:
+```json
+{
+  "api_key": "zdat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+}
+```
+
+**成功响应** (200 OK):
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "access_token": "eyJhbGciOiJIUzI1NiIs...",
+    "refresh_token": "dGhpcyBpcyBhIHJlZnJlc2g...",
+    "expires_in": 900,
+    "token_type": "Bearer",
+    "device_id": "550e8400-e29b-41d4-a716-446655440000"
+  }
+}
+```
+
+之后使用 JWT 进行后续请求：
+
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+```
+
+**优势**：
+- ✅ 短期有效（15 分钟），泄露风险低
+- ✅ 可用 refresh_token 续期
+- ✅ 无状态验证，性能更好
+
+> 📘 **详细指南**: 参见 [TOKEN_GUIDE.md](./TOKEN_GUIDE.md)
 
 ### 角色权限
 
@@ -1399,6 +1447,101 @@ GET /api/v1/alerts/rules
 
 ---
 
+### 更新预警规则
+
+更新指定的预警规则配置。
+
+```
+PUT /api/v1/alerts/rules/{id}
+```
+
+**认证**：需要有效的 `access_token`
+
+**路径参数**：
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `id` | UUID | 预警规则 ID |
+
+**请求体**（所有字段可选）：
+
+```json
+{
+  "name": "更新后的规则名称",
+  "alert_type": "critical_battery",
+  "level": "critical",
+  "threshold_value": 10.0,
+  "cooldown_minutes": 60,
+  "enabled": false
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `name` | string | ❌ | 规则名称（1-100字符） |
+| `alert_type` | string | ❌ | 预警类型 |
+| `level` | string | ❌ | 预警级别 |
+| `threshold_value` | number | ❌ | 触发阈值 |
+| `cooldown_minutes` | number | ❌ | 冷却时间（1-1440分钟） |
+| `enabled` | boolean | ❌ | 是否启用 |
+
+**成功响应** (200 OK)：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "id": "880e8400-e29b-41d4-a716-446655440000",
+    "name": "更新后的规则名称",
+    "alert_type": "critical_battery",
+    "level": "critical",
+    "threshold_value": 10.0,
+    "cooldown_minutes": 60,
+    "enabled": false,
+    "created_at": "2026-01-12T10:30:00Z",
+    "updated_at": "2026-01-13T14:20:00Z"
+  }
+}
+```
+
+**错误响应**：
+
+| 状态码 | 错误码 | 说明 |
+|--------|--------|------|
+| 404 | NOT_FOUND | 规则不存在 |
+| 422 | VALIDATION_ERROR | 验证失败 |
+
+---
+
+### 删除预警规则
+
+删除指定的预警规则。
+
+```
+DELETE /api/v1/alerts/rules/{id}
+```
+
+**认证**：需要有效的 `access_token`
+
+**路径参数**：
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `id` | UUID | 预警规则 ID |
+
+**成功响应** (204 No Content)：
+
+无响应体
+
+**错误响应**：
+
+| 状态码 | 错误码 | 说明 |
+|--------|--------|------|
+| 404 | NOT_FOUND | 规则不存在 |
+
+---
+
 ### 获取预警事件列表
 
 获取预警事件记录。
@@ -1817,6 +1960,440 @@ interface PaginatedResponse<T> {
 
 ---
 
-> 📝 **文档版本**：1.0.0  
-> 📅 **最后更新**：2026-01-12  
+> 📝 **文档版本**：1.1.0  
+> 📅 **最后更新**：2026-01-13  
 > 🔗 **后端仓库**：zinnia
+
+---
+
+## WebSocket 接口
+
+### 概述
+
+WebSocket 接口提供实时双向通信，适用于：
+
+- **设备端**：持久连接实时上报电量数据
+- **用户端**：订阅设备数据，接收实时推送
+
+**连接端点**：
+```
+ws://<host>/ws
+wss://<host>/ws  (TLS)
+```
+
+### 连接流程
+
+```mermaid
+sequenceDiagram
+    participant C as 客户端
+    participant S as 服务器
+    
+    C->>S: WebSocket 握手
+    S->>C: Connected (auth_timeout: 30s)
+    C->>S: Auth (token)
+    S->>C: AuthResult (success/failed)
+    
+    loop 已认证
+        C->>S: BatteryReport / Ping
+        S->>C: BatteryReportResult / Pong
+    end
+```
+
+### 认证
+
+连接建立后，客户端需在 30 秒内发送认证消息，否则连接将被关闭。
+
+**设备认证**：
+```json
+{
+  "type": "auth",
+  "token": "<device_access_token>",
+  "auth_type": "device_token"
+}
+```
+
+**用户认证（JWT）**：
+```json
+{
+  "type": "auth",
+  "token": "<jwt_access_token>",
+  "auth_type": "jwt"
+}
+```
+
+**认证成功响应**：
+```json
+{
+  "type": "auth_result",
+  "success": true,
+  "message": "认证成功",
+  "device_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+**认证失败响应**：
+```json
+{
+  "type": "auth_result",
+  "success": false,
+  "message": "令牌无效或已过期"
+}
+```
+
+---
+
+### 消息类型
+
+#### 客户端消息
+
+| 类型 | 描述 | 权限 |
+|------|------|------|
+| `auth` | 认证消息 | 所有 |
+| `battery_report` | 上报电量数据 | 设备 |
+| `batch_battery_report` | 批量上报电量 | 设备 |
+| `ping` | 心跳 | 所有 |
+| `subscribe` | 订阅设备数据 | 用户 |
+| `unsubscribe` | 取消订阅 | 用户 |
+
+#### 服务器消息
+
+| 类型 | 描述 |
+|------|------|
+| `connected` | 连接成功 |
+| `auth_result` | 认证结果 |
+| `battery_report_result` | 上报结果 |
+| `batch_battery_report_result` | 批量上报结果 |
+| `pong` | 心跳响应 |
+| `subscribe_result` | 订阅结果 |
+| `battery_push` | 电量数据推送 |
+| `alert_push` | 预警推送 |
+| `error` | 错误消息 |
+
+---
+
+### 电量上报（设备）
+
+**请求**：
+```json
+{
+  "type": "battery_report",
+  "battery_level": 75,
+  "is_charging": false,
+  "power_saving_mode": "off",
+  "temperature": 25.5,
+  "voltage": 3.8,
+  "recorded_at": "2026-01-13T10:30:00Z",
+  "msg_id": "req-001"
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `battery_level` | number | ✅ | 电量值 (0-100) |
+| `is_charging` | boolean | ❌ | 是否充电（默认 false） |
+| `power_saving_mode` | string | ❌ | 省电模式 |
+| `temperature` | number | ❌ | 温度（摄氏度） |
+| `voltage` | number | ❌ | 电压（伏特） |
+| `recorded_at` | string | ❌ | 记录时间（默认服务器时间） |
+| `msg_id` | string | ❌ | 消息 ID（用于追踪） |
+
+**成功响应**：
+```json
+{
+  "type": "battery_report_result",
+  "success": true,
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "device_id": "550e8400-e29b-41d4-a716-446655440001",
+    "battery_level": 75,
+    "is_charging": false,
+    "power_saving_mode": "off",
+    "temperature": 25.5,
+    "voltage": 3.8,
+    "recorded_at": "2026-01-13T10:30:00Z",
+    "created_at": "2026-01-13T10:30:01Z"
+  },
+  "msg_id": "req-001"
+}
+```
+
+**失败响应**：
+```json
+{
+  "type": "battery_report_result",
+  "success": false,
+  "error": "电量值必须在 0-100 之间",
+  "msg_id": "req-001"
+}
+```
+
+---
+
+### 批量上报（设备）
+
+**请求**：
+```json
+{
+  "type": "batch_battery_report",
+  "data": [
+    {
+      "battery_level": 80,
+      "is_charging": true,
+      "recorded_at": "2026-01-13T10:00:00Z"
+    },
+    {
+      "battery_level": 75,
+      "is_charging": false,
+      "recorded_at": "2026-01-13T10:30:00Z"
+    }
+  ],
+  "msg_id": "batch-001"
+}
+```
+
+**响应**：
+```json
+{
+  "type": "batch_battery_report_result",
+  "success": true,
+  "inserted_count": 2,
+  "msg_id": "batch-001"
+}
+```
+
+---
+
+### 订阅设备数据（用户）
+
+用户可以订阅一个或多个设备的实时数据推送。
+
+**订阅请求**：
+```json
+{
+  "type": "subscribe",
+  "device_ids": [
+    "550e8400-e29b-41d4-a716-446655440000",
+    "550e8400-e29b-41d4-a716-446655440001"
+  ]
+}
+```
+
+**订阅响应**：
+```json
+{
+  "type": "subscribe_result",
+  "success": true,
+  "subscribed_devices": [
+    "550e8400-e29b-41d4-a716-446655440000",
+    "550e8400-e29b-41d4-a716-446655440001"
+  ]
+}
+```
+
+**取消订阅**：
+```json
+{
+  "type": "unsubscribe",
+  "device_ids": ["550e8400-e29b-41d4-a716-446655440000"]
+}
+```
+
+---
+
+### 数据推送
+
+当订阅的设备上报新数据时，用户会收到推送：
+
+```json
+{
+  "type": "battery_push",
+  "device_id": "550e8400-e29b-41d4-a716-446655440000",
+  "data": {
+    "device_id": "550e8400-e29b-41d4-a716-446655440000",
+    "battery_level": 75,
+    "is_charging": false,
+    "power_saving_mode": "off",
+    "recorded_at": "2026-01-13T10:30:00Z",
+    "is_low_battery": false,
+    "is_critical": false
+  }
+}
+```
+
+### 预警推送
+
+```json
+{
+  "type": "alert_push",
+  "device_id": "550e8400-e29b-41d4-a716-446655440000",
+  "alert_type": "low_battery",
+  "message": "设备电量过低 (15%)",
+  "severity": "warning",
+  "timestamp": "2026-01-13T10:30:00Z"
+}
+```
+
+---
+
+### 心跳
+
+保持连接活跃：
+
+**请求**：
+```json
+{
+  "type": "ping"
+}
+```
+
+**响应**：
+```json
+{
+  "type": "pong"
+}
+```
+
+---
+
+### 错误消息
+
+```json
+{
+  "type": "error",
+  "code": "UNAUTHORIZED",
+  "message": "请先完成认证"
+}
+```
+
+**常见错误码**：
+
+| 错误码 | 描述 |
+|--------|------|
+| `INVALID_MESSAGE` | 消息格式错误 |
+| `UNAUTHORIZED` | 未认证 |
+| `AUTH_TIMEOUT` | 认证超时 |
+| `FORBIDDEN` | 无权限执行此操作 |
+| `VALIDATION_ERROR` | 数据验证失败 |
+| `INTERNAL_ERROR` | 服务器内部错误 |
+
+---
+
+### WebSocket TypeScript 类型定义
+
+```typescript
+// 客户端消息类型
+type ClientMessage = 
+  | { type: 'auth'; token: string; auth_type?: 'device_token' | 'jwt' }
+  | { type: 'battery_report'; battery_level: number; is_charging?: boolean; power_saving_mode?: string; temperature?: number; voltage?: number; recorded_at?: string; msg_id?: string }
+  | { type: 'batch_battery_report'; data: BatteryReportData[]; msg_id?: string }
+  | { type: 'ping' }
+  | { type: 'subscribe'; device_ids: string[] }
+  | { type: 'unsubscribe'; device_ids?: string[] };
+
+// 服务器消息类型
+type ServerMessage =
+  | { type: 'connected'; message: string; server_time: string; auth_timeout: number }
+  | { type: 'auth_result'; success: boolean; message: string; device_id?: string; user_id?: string }
+  | { type: 'battery_report_result'; success: boolean; data?: BatteryData; error?: string; msg_id?: string }
+  | { type: 'batch_battery_report_result'; success: boolean; inserted_count?: number; error?: string; msg_id?: string }
+  | { type: 'pong' }
+  | { type: 'subscribe_result'; success: boolean; subscribed_devices: string[]; error?: string }
+  | { type: 'battery_push'; device_id: string; data: LatestBatteryResponse }
+  | { type: 'alert_push'; device_id: string; alert_type: string; message: string; severity: string; timestamp: string }
+  | { type: 'error'; code: string; message: string };
+
+interface BatteryReportData {
+  battery_level: number;
+  is_charging?: boolean;
+  power_saving_mode?: string;
+  temperature?: number;
+  voltage?: number;
+  recorded_at?: string;
+}
+```
+
+---
+
+### 使用示例
+
+#### JavaScript/TypeScript 客户端
+
+```typescript
+// 设备连接示例
+const ws = new WebSocket('wss://api.example.com/ws');
+
+ws.onopen = () => {
+  // 发送认证
+  ws.send(JSON.stringify({
+    type: 'auth',
+    token: 'your-device-token',
+    auth_type: 'device_token'
+  }));
+};
+
+ws.onmessage = (event) => {
+  const msg = JSON.parse(event.data);
+  
+  switch (msg.type) {
+    case 'auth_result':
+      if (msg.success) {
+        console.log('认证成功');
+        // 开始上报
+        reportBattery();
+      } else {
+        console.error('认证失败:', msg.message);
+      }
+      break;
+    case 'battery_report_result':
+      if (msg.success) {
+        console.log('上报成功:', msg.data);
+      } else {
+        console.error('上报失败:', msg.error);
+      }
+      break;
+  }
+};
+
+function reportBattery() {
+  ws.send(JSON.stringify({
+    type: 'battery_report',
+    battery_level: 75,
+    is_charging: false,
+    temperature: 25.5
+  }));
+}
+
+// 心跳保活
+setInterval(() => {
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'ping' }));
+  }
+}, 30000);
+```
+
+#### Rust 客户端
+
+```rust
+use tokio_tungstenite::connect_async;
+use futures_util::{SinkExt, StreamExt};
+
+#[tokio::main]
+async fn main() {
+    let (ws_stream, _) = connect_async("wss://api.example.com/ws")
+        .await
+        .expect("连接失败");
+
+    let (mut write, mut read) = ws_stream.split();
+
+    // 发送认证
+    let auth_msg = r#"{"type":"auth","token":"your-token","auth_type":"device_token"}"#;
+    write.send(auth_msg.into()).await.unwrap();
+
+    // 处理消息
+    while let Some(msg) = read.next().await {
+        if let Ok(msg) = msg {
+            println!("收到: {}", msg);
+        }
+    }
+}
+```

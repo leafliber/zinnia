@@ -11,7 +11,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use zinnia::{
     config::Settings,
     db::{PostgresPool, RedisPool},
-    middleware::{RequestLogger, RequestValidator, SecurityHeaders},
+    middleware::{JwtAuth, JwtOrApiKeyAuth, RequestLogger, RequestValidator, SecurityHeaders},
     repositories::{AlertRepository, BatteryRepository, DeviceAccessTokenRepository, DeviceRepository, UserRepository},
     routes,
     security::{JwtManager, Secrets},
@@ -20,6 +20,7 @@ use zinnia::{
         DeviceService, EmailService, RecaptchaService, RegistrationSecurityService, 
         UserService, VerificationService,
     },
+    websocket,
 };
 
 #[actix_web::main]
@@ -133,6 +134,14 @@ async fn main() -> std::io::Result<()> {
             .allowed_headers(vec!["Authorization", "Content-Type", "X-API-Key", "X-Request-ID"])
             .max_age(3600);
 
+        // 创建认证中间件实例
+        let jwt_auth = JwtAuth::new(jwt_manager.clone(), redis_pool.clone());
+        let jwt_or_apikey_auth = JwtOrApiKeyAuth::new(
+            jwt_manager.clone(),
+            redis_pool.clone(),
+            device_service.clone(),
+        );
+
         App::new()
             // 全局中间件
             .wrap(cors)
@@ -156,8 +165,10 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(verification_service.clone()))
             .app_data(web::Data::new(recaptcha_service.clone()))
             .app_data(web::Data::new(registration_security_service.clone()))
-            // 配置路由
-            .configure(routes::configure)
+            // 配置 HTTP 路由
+            .configure(|cfg| routes::configure(cfg, jwt_auth.clone(), jwt_or_apikey_auth.clone()))
+            // 配置 WebSocket 路由
+            .configure(websocket::configure_ws_routes)
     })
     .workers(workers)
     .bind(&server_addr)?
