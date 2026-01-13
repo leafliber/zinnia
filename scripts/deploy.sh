@@ -542,11 +542,6 @@ setup_ssl() {
     
     log_success "SSL 配置完成"
 }
-    $COMPOSE -f "$COMPOSE_FILE" restart nginx
-    
-    log_success "SSL 证书配置完成"
-    log_info "HTTPS 地址: https://$DOMAIN"
-}
 
 show_info() {
     print_header "部署完成"
