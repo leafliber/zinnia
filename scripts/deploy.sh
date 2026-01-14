@@ -377,13 +377,13 @@ build_and_start() {
     
     log_info "构建应用镜像..."
     # 如果仓库缺少 Cargo.lock，则尝试生成（有 cargo 时）
-    if [ ! -f Cargo.lock ]; then
+    if [ ! -f "$ROOT_DIR/Cargo.lock" ]; then
         if command -v cargo >/dev/null 2>&1; then
-            log_info "未检测到 Cargo.lock，正在生成..."
+            log_info "未检测到 $ROOT_DIR/Cargo.lock，正在生成..."
             cargo generate-lockfile
             log_success "Cargo.lock 已生成"
         else
-            log_warn "未检测到 Cargo.lock，且系统无 cargo，跳过生成 Cargo.lock（构建可能失败）"
+            log_warn "未检测到 $ROOT_DIR/Cargo.lock，且系统无 cargo，跳过生成 Cargo.lock（构建可能失败）"
         fi
     fi
 
