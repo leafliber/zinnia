@@ -18,40 +18,42 @@ impl AlertService {
         Self { alert_repo }
     }
 
-    /// 创建预警规则
-    pub async fn create_rule(&self, request: CreateAlertRuleRequest) -> Result<AlertRule, AppError> {
-        self.alert_repo.create_rule(&request).await
+    /// 创建预警规则（用户独立）
+    pub async fn create_rule(&self, user_id: Uuid, request: CreateAlertRuleRequest) -> Result<AlertRule, AppError> {
+        self.alert_repo.create_rule(user_id, &request).await
     }
 
-    /// 获取所有启用的规则
-    pub async fn get_enabled_rules(&self) -> Result<Vec<AlertRule>, AppError> {
-        self.alert_repo.get_enabled_rules().await
+    /// 获取用户的所有启用规则
+    pub async fn get_enabled_rules(&self, user_id: Uuid) -> Result<Vec<AlertRule>, AppError> {
+        self.alert_repo.get_enabled_rules(user_id).await
     }
 
-    /// 获取预警规则
-    pub async fn get_rule(&self, rule_id: Uuid) -> Result<AlertRule, AppError> {
+    /// 获取预警规则（仅限用户自己的规则）
+    pub async fn get_rule(&self, rule_id: Uuid, user_id: Uuid) -> Result<AlertRule, AppError> {
         self.alert_repo
-            .get_rule_by_id(rule_id)
+            .get_rule_by_id(rule_id, user_id)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("预警规则不存在: {}", rule_id)))
+            .ok_or_else(|| AppError::NotFound(format!("预警规则不存在或无权访问: {}", rule_id)))
     }
 
-    /// 更新预警规则
-    pub async fn update_rule(&self, rule_id: Uuid, request: UpdateAlertRuleRequest) -> Result<AlertRule, AppError> {
-        self.alert_repo.update_rule(rule_id, &request).await
+    /// 更新预警规则（仅限用户自己的规则）
+    pub async fn update_rule(&self, rule_id: Uuid, user_id: Uuid, request: UpdateAlertRuleRequest) -> Result<AlertRule, AppError> {
+        self.alert_repo.update_rule(rule_id, user_id, &request).await
     }
 
-    /// 删除预警规则
-    pub async fn delete_rule(&self, rule_id: Uuid) -> Result<(), AppError> {
-        self.alert_repo.delete_rule(rule_id).await
+    /// 删除预警规则（仅限用户自己的规则）
+    pub async fn delete_rule(&self, rule_id: Uuid, user_id: Uuid) -> Result<(), AppError> {
+        self.alert_repo.delete_rule(rule_id, user_id).await
     }
 
     /// 触发低电量预警
-    pub async fn trigger_low_battery(&self, device_id: Uuid, level: f64) -> Result<Option<AlertEvent>, AppError> {
+    pub async fn trigger_low_battery(&self, device_id: Uuid, user_id: Uuid, level: f64, threshold: f64) -> Result<Option<AlertEvent>, AppError> {
         self.trigger_alert(
             device_id,
+            user_id,
             AlertType::LowBattery,
             level,
+            threshold,
             &format!("设备电量低: {}%", level as i32),
         )
         .await
@@ -61,12 +63,16 @@ impl AlertService {
     pub async fn trigger_critical_battery(
         &self,
         device_id: Uuid,
+        user_id: Uuid,
         level: f64,
+        threshold: f64,
     ) -> Result<Option<AlertEvent>, AppError> {
         self.trigger_alert(
             device_id,
+            user_id,
             AlertType::CriticalBattery,
             level,
+            threshold,
             &format!("设备电量临界: {}%", level as i32),
         )
         .await
@@ -76,22 +82,28 @@ impl AlertService {
     pub async fn trigger_high_temperature(
         &self,
         device_id: Uuid,
+        user_id: Uuid,
         temperature: f64,
+        threshold: f64,
     ) -> Result<Option<AlertEvent>, AppError> {
         self.trigger_alert(
             device_id,
+            user_id,
             AlertType::HighTemperature,
             temperature,
+            threshold,
             &format!("设备温度过高: {:.1}°C", temperature),
         )
         .await
     }
 
     /// 触发设备离线预警
-    pub async fn trigger_device_offline(&self, device_id: Uuid) -> Result<Option<AlertEvent>, AppError> {
+    pub async fn trigger_device_offline(&self, device_id: Uuid, user_id: Uuid) -> Result<Option<AlertEvent>, AppError> {
         self.trigger_alert(
             device_id,
+            user_id,
             AlertType::DeviceOffline,
+            0.0,
             0.0,
             "设备已离线",
         )
@@ -102,12 +114,14 @@ impl AlertService {
     async fn trigger_alert(
         &self,
         device_id: Uuid,
+        user_id: Uuid,
         alert_type: AlertType,
         value: f64,
+        threshold: f64,
         message: &str,
     ) -> Result<Option<AlertEvent>, AppError> {
-        // 获取对应的预警规则
-        let rule = match self.alert_repo.get_rule_by_type(&alert_type).await? {
+        // 获取对应的预警规则（用于级别和冷却时间）
+        let rule = match self.alert_repo.get_rule_by_type(user_id, &alert_type).await? {
             Some(r) => r,
             None => {
                 tracing::debug!(
@@ -133,10 +147,10 @@ impl AlertService {
             return Ok(None);
         }
 
-        // 创建预警事件
+        // 创建预警事件（使用设备实际阈值）
         let event = self
             .alert_repo
-            .create_event(device_id, &rule, value, message)
+            .create_event(device_id, &rule, value, threshold, message)
             .await?;
 
         tracing::info!(
@@ -144,6 +158,7 @@ impl AlertService {
             alert_type = ?alert_type,
             level = ?rule.level,
             value = value,
+            threshold = threshold,
             "触发预警"
         );
 
@@ -152,19 +167,21 @@ impl AlertService {
         Ok(Some(event))
     }
 
-    /// 更新预警状态
+    /// 更新预警状态（仅限用户设备的预警）
     pub async fn update_status(
         &self,
         event_id: Uuid,
+        user_id: Uuid,
         request: UpdateAlertStatusRequest,
     ) -> Result<AlertEvent, AppError> {
-        self.alert_repo.update_event_status(event_id, &request).await
+        self.alert_repo.update_event_status(event_id, user_id, &request).await
     }
 
     /// 确认预警
-    pub async fn acknowledge(&self, event_id: Uuid) -> Result<AlertEvent, AppError> {
+    pub async fn acknowledge(&self, event_id: Uuid, user_id: Uuid) -> Result<AlertEvent, AppError> {
         self.update_status(
             event_id,
+            user_id,
             UpdateAlertStatusRequest {
                 status: AlertStatus::Acknowledged,
             },
@@ -173,9 +190,10 @@ impl AlertService {
     }
 
     /// 解决预警
-    pub async fn resolve(&self, event_id: Uuid) -> Result<AlertEvent, AppError> {
+    pub async fn resolve(&self, event_id: Uuid, user_id: Uuid) -> Result<AlertEvent, AppError> {
         self.update_status(
             event_id,
+            user_id,
             UpdateAlertStatusRequest {
                 status: AlertStatus::Resolved,
             },
@@ -183,9 +201,9 @@ impl AlertService {
         .await
     }
 
-    /// 查询预警列表
-    pub async fn list(&self, query: AlertListQuery) -> Result<PaginatedResponse<AlertEvent>, AppError> {
-        let (events, total) = self.alert_repo.list_events(&query).await?;
+    /// 查询预警列表（仅限用户设备）
+    pub async fn list(&self, user_id: Uuid, query: AlertListQuery) -> Result<PaginatedResponse<AlertEvent>, AppError> {
+        let (events, total) = self.alert_repo.list_events(user_id, &query).await?;
 
         let pagination = Pagination::new(query.page, query.page_size, total);
 

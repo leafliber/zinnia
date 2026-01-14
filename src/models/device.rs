@@ -46,7 +46,7 @@ pub struct DeviceConfig {
     pub low_battery_threshold: i32,
     pub critical_battery_threshold: i32,
     pub report_interval_seconds: i32,
-    pub power_saving_enabled: bool,
+    pub high_temperature_threshold: f64,
     pub updated_at: DateTime<Utc>,
 }
 
@@ -57,7 +57,7 @@ impl Default for DeviceConfig {
             low_battery_threshold: 20,
             critical_battery_threshold: 10,
             report_interval_seconds: 60,
-            power_saving_enabled: false,
+            high_temperature_threshold: 45.0,
             updated_at: Utc::now(),
         }
     }
@@ -108,7 +108,10 @@ pub struct UpdateDeviceConfigRequest {
     #[validate(range(min = 10, max = 3600, message = "上报间隔应在 10-3600 秒之间"))]
     pub report_interval_seconds: Option<i32>,
     
-    pub power_saving_enabled: Option<bool>,
+
+    
+    #[validate(range(min = -40.0, max = 200.0, message = "温度阈值应在 -40 到 200 摄氏度之间"))]
+    pub high_temperature_threshold: Option<f64>,
 }
 
 /// 设备列表查询参数

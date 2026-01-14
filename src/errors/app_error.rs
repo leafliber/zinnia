@@ -55,7 +55,14 @@ pub enum AppError {
 #[derive(Serialize)]
 struct ErrorResponse {
     code: u16,
+    // 人类可读的错误信息（用于展示）
     message: String,
+    // 机器可识别的错误类型（例如: "validation_error", "unauthorized"）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+    // 可选的详细错误信息（字段级错误或内部提示）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    details: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     request_id: Option<String>,
 }
@@ -79,8 +86,8 @@ impl ResponseError for AppError {
 
     fn error_response(&self) -> HttpResponse {
         let status = self.status_code();
-        
-        // 生产环境下不暴露内部错误细节
+        let is_dev = std::env::var("APP_ENV").unwrap_or_default() == "development";
+        // 生产环境下不暴露内部错误细节，开发环境输出详细错误
         let message = match self {
             // 安全错误信息：不泄露具体原因
             AppError::Unauthorized(_) => "认证失败".to_string(),
@@ -90,23 +97,69 @@ impl ResponseError for AppError {
             AppError::Conflict(msg) => msg.clone(),
             AppError::RateLimited(_) => "请求过于频繁，请稍后重试".to_string(),
             AppError::RateLimitExceeded(msg) => msg.clone(),
-            // 内部错误：隐藏具体细节
-            AppError::DatabaseError(_) => "服务暂时不可用".to_string(),
-            AppError::RedisError(_) => "服务暂时不可用".to_string(),
-            AppError::InternalError(_) => "服务内部错误".to_string(),
-            AppError::ConfigError(_) => "服务配置错误".to_string(),
+            // 内部错误：隐藏具体细节（dev 环境下输出详细错误）
+            AppError::DatabaseError(e) => {
+                if is_dev {
+                    format!("数据库错误: {e:?}")
+                } else {
+                    "服务暂时不可用".to_string()
+                }
+            }
+            AppError::RedisError(e) => {
+                if is_dev {
+                    format!("Redis错误: {e:?}")
+                } else {
+                    "服务暂时不可用".to_string()
+                }
+            }
+            AppError::InternalError(msg) => {
+                if is_dev {
+                    format!("内部服务错误: {msg}")
+                } else {
+                    "服务内部错误".to_string()
+                }
+            }
+            AppError::ConfigError(msg) => {
+                if is_dev {
+                    format!("配置错误: {msg}")
+                } else {
+                    "服务配置错误".to_string()
+                }
+            }
         };
 
-        // 记录详细错误日志（内部）
-        tracing::error!(
-            error_type = %self,
-            status = %status,
-            "请求处理错误"
-        );
+        // 记录错误日志（开发环境记录详细信息）
+        if is_dev {
+            tracing::error!(
+                error_type = %self,
+                status = %status,
+                error_detail = ?self,
+                "请求处理错误(dev)"
+            );
+        } else {
+            tracing::error!(
+                error_type = %self,
+                status = %status,
+                "请求处理错误"
+            );
+        }
+
+        // 构建附加字段：对于 ValidationError 我们在生产环境也要将具体信息传回前端
+        let (err_type, details) = match self {
+            AppError::ValidationError(msg) => (Some("validation_error".to_string()), Some(msg.clone())),
+            AppError::Unauthorized(_) => (Some("unauthorized".to_string()), None),
+            AppError::Forbidden(_) => (Some("forbidden".to_string()), None),
+            AppError::NotFound(_) => (Some("not_found".to_string()), None),
+            AppError::Conflict(msg) => (Some("conflict".to_string()), Some(msg.clone())),
+            AppError::RateLimitExceeded(msg) => (Some("rate_limit_exceeded".to_string()), Some(msg.clone())),
+            _ => (None, None),
+        };
 
         HttpResponse::build(status).json(ErrorResponse {
             code: status.as_u16(),
             message,
+            error: err_type,
+            details,
             request_id: None, // TODO: 从请求上下文获取
         })
     }

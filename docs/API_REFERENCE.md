@@ -591,7 +591,8 @@ POST /api/v1/devices
       "low_battery_threshold": 20,
       "critical_battery_threshold": 10,
       "report_interval_seconds": 60,
-      "power_saving_enabled": false
+      "high_temperature_threshold": 45.0,
+      "updated_at": "2026-01-12T10:30:00Z"
     }
   }
 }
@@ -739,7 +740,7 @@ GET /api/v1/devices/{id}/config
     "low_battery_threshold": 20,
     "critical_battery_threshold": 10,
     "report_interval_seconds": 60,
-    "power_saving_enabled": false,
+    "high_temperature_threshold": 45.0,
     "updated_at": "2026-01-12T10:30:00Z"
   }
 }
@@ -762,7 +763,7 @@ PUT /api/v1/devices/{id}/config
   "low_battery_threshold": 25,
   "critical_battery_threshold": 10,
   "report_interval_seconds": 120,
-  "power_saving_enabled": true
+  "high_temperature_threshold": 45.0
 }
 ```
 
@@ -771,7 +772,27 @@ PUT /api/v1/devices/{id}/config
 | `low_battery_threshold` | number | ❌ | 1-100 |
 | `critical_battery_threshold` | number | ❌ | 1-100 |
 | `report_interval_seconds` | number | ❌ | 10-3600 秒 |
-| `power_saving_enabled` | boolean | ❌ | - |
+
+
+新增字段：
+| `high_temperature_threshold` | number | ❌ | -40.0 - 200.0（摄氏度） |
+
+说明：
+- 设备配置中的 `high_temperature_threshold` 用于判断设备的高温预警触发；系统在判断和触发所有预警时优先使用设备配置的阈值（设备优先）。
+- `alert_rules` 表中只定义预警规则的级别（level）和冷却时间（cooldown_minutes），触发阈值由设备配置决定。
+
+### 数据隔离与权限
+
+**用户隔离**：
+- ✅ **设备**：每个设备有 `owner_id`，用户只能管理自己的设备或被共享的设备
+- ✅ **预警规则**：每个用户拥有独立的预警规则集（`alert_rules.user_id`），互不干扰
+- ✅ **预警事件**：通过 `device_id` 关联到设备，用户只能查看自己设备的预警事件
+
+**权限控制**：
+- 所有预警规则 API 必须使用用户 JWT 认证（不支持设备 API Key）
+- 用户只能创建、修改、删除自己的预警规则
+- 用户只能查看、确认、解决自己设备的预警事件
+- 设备数据上报时会自动触发其所有者的预警规则
 
 ---
 
@@ -1373,13 +1394,13 @@ GET /api/v1/battery/stats/{device_id}
 
 ### 创建预警规则
 
-创建新的预警规则。
+创建用户专属的预警规则。每个用户可以独立配置自己的预警规则。
 
 ```
 POST /api/v1/alerts/rules
 ```
 
-**认证**：需要有效的 `access_token`
+**认证**：需要有效的 `access_token`（用户认证）
 
 **请求体**：
 
@@ -1388,7 +1409,6 @@ POST /api/v1/alerts/rules
   "name": "低电量预警",
   "alert_type": "low_battery",
   "level": "warning",
-  "threshold_value": 20.0,
   "cooldown_minutes": 30,
   "enabled": true
 }
@@ -1399,7 +1419,6 @@ POST /api/v1/alerts/rules
 | `name` | string | ✅ | 规则名称（1-100字符） |
 | `alert_type` | string | ✅ | 预警类型 |
 | `level` | string | ✅ | 预警级别 |
-| `threshold_value` | number | ✅ | 触发阈值 |
 | `cooldown_minutes` | number | ❌ | 冷却时间（默认30，范围1-1440分钟） |
 | `enabled` | boolean | ❌ | 是否启用（默认 `true`） |
 
@@ -1423,10 +1442,10 @@ POST /api/v1/alerts/rules
   "message": "created",
   "data": {
     "id": "880e8400-e29b-41d4-a716-446655440000",
+    "user_id": "550e8400-e29b-41d4-a716-446655440000",
     "name": "低电量预警",
     "alert_type": "low_battery",
     "level": "warning",
-    "threshold_value": 20.0,
     "cooldown_minutes": 30,
     "enabled": true,
     "created_at": "2026-01-12T10:30:00Z",
@@ -1435,27 +1454,34 @@ POST /api/v1/alerts/rules
 }
 ```
 
+**说明**：
+- 每个用户拥有独立的预警规则集，互不干扰
+- 每个用户的每种预警类型只能有一个启用的规则
+- 触发阈值由设备配置决定（`device_configs` 表），规则只定义预警级别和冷却时间
+
 ---
 
 ### 获取预警规则列表
 
-获取所有预警规则。
+获取当前用户的所有预警规则。
 
 ```
 GET /api/v1/alerts/rules
 ```
 
+**认证**：需要有效的 `access_token`（用户认证）
+
 ---
 
 ### 更新预警规则
 
-更新指定的预警规则配置。
+更新当前用户的预警规则配置。
 
 ```
 PUT /api/v1/alerts/rules/{id}
 ```
 
-**认证**：需要有效的 `access_token`
+**认证**：需要有效的 `access_token`（用户认证，只能更新自己的规则）
 
 **路径参数**：
 
@@ -1470,7 +1496,6 @@ PUT /api/v1/alerts/rules/{id}
   "name": "更新后的规则名称",
   "alert_type": "critical_battery",
   "level": "critical",
-  "threshold_value": 10.0,
   "cooldown_minutes": 60,
   "enabled": false
 }
@@ -1481,7 +1506,6 @@ PUT /api/v1/alerts/rules/{id}
 | `name` | string | ❌ | 规则名称（1-100字符） |
 | `alert_type` | string | ❌ | 预警类型 |
 | `level` | string | ❌ | 预警级别 |
-| `threshold_value` | number | ❌ | 触发阈值 |
 | `cooldown_minutes` | number | ❌ | 冷却时间（1-1440分钟） |
 | `enabled` | boolean | ❌ | 是否启用 |
 
@@ -1493,10 +1517,10 @@ PUT /api/v1/alerts/rules/{id}
   "message": "success",
   "data": {
     "id": "880e8400-e29b-41d4-a716-446655440000",
+    "user_id": "550e8400-e29b-41d4-a716-446655440000",
     "name": "更新后的规则名称",
     "alert_type": "critical_battery",
     "level": "critical",
-    "threshold_value": 10.0,
     "cooldown_minutes": 60,
     "enabled": false,
     "created_at": "2026-01-12T10:30:00Z",
@@ -1516,13 +1540,13 @@ PUT /api/v1/alerts/rules/{id}
 
 ### 删除预警规则
 
-删除指定的预警规则。
+删除当前用户的预警规则。
 
 ```
 DELETE /api/v1/alerts/rules/{id}
 ```
 
-**认证**：需要有效的 `access_token`
+**认证**：需要有效的 `access_token`（用户认证，只能删除自己的规则）
 
 **路径参数**：
 
@@ -1544,11 +1568,13 @@ DELETE /api/v1/alerts/rules/{id}
 
 ### 获取预警事件列表
 
-获取预警事件记录。
+获取当前用户设备的预警事件记录。只能查看自己拥有或被共享的设备的预警。
 
 ```
 GET /api/v1/alerts/events
 ```
+
+**认证**：需要有效的 `access_token`（用户认证）
 
 **查询参数**：
 
@@ -1598,31 +1624,37 @@ GET /api/v1/alerts/events
 
 ### 确认预警
 
-标记预警为已确认。
+标记预警为已确认（仅限当前用户设备的预警）。
 
 ```
 POST /api/v1/alerts/events/{id}/acknowledge
 ```
 
+**认证**：需要有效的 `access_token`（用户认证）
+
 ---
 
 ### 解决预警
 
-标记预警为已解决。
+标记预警为已解决（仅限当前用户设备的预警）。
 
 ```
 POST /api/v1/alerts/events/{id}/resolve
 ```
 
+**认证**：需要有效的 `access_token`（用户认证）
+
 ---
 
 ### 更新预警状态
 
-手动更新预警状态。
+手动更新预警状态（仅限当前用户设备的预警）。
 
 ```
 PUT /api/v1/alerts/events/{id}/status
 ```
+
+**认证**：需要有效的 `access_token`（用户认证）
 
 **请求体**：
 
@@ -1636,11 +1668,13 @@ PUT /api/v1/alerts/events/{id}/status
 
 ### 获取设备活跃预警数
 
-获取指定设备的活跃预警数量。
+获取指定设备的活跃预警数量（仅限当前用户的设备）。
 
 ```
 GET /api/v1/alerts/devices/{device_id}/count
 ```
+
+**认证**：需要有效的 `access_token`（用户认证，需要设备访问权限）
 
 **成功响应** (200 OK)：
 
@@ -1869,7 +1903,7 @@ interface DeviceConfig {
   low_battery_threshold: number;
   critical_battery_threshold: number;
   report_interval_seconds: number;
-  power_saving_enabled: boolean;
+  high_temperature_threshold: number;
   updated_at: string;
 }
 
@@ -1911,10 +1945,10 @@ interface BatteryStats {
 // 预警相关
 interface AlertRule {
   id: string;
+  user_id: string;
   name: string;
   alert_type: 'low_battery' | 'critical_battery' | 'high_temperature' | 'device_offline' | 'rapid_drain';
   level: 'info' | 'warning' | 'critical';
-  threshold_value: number;
   cooldown_minutes: number;
   enabled: boolean;
   created_at: string;

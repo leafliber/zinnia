@@ -208,6 +208,23 @@ impl BatteryService {
 
     /// 检查预警
     async fn check_alerts(&self, device_id: Uuid, data: &BatteryData) -> Result<(), AppError> {
+        // 获取设备信息（需要 owner_id 来触发预警）
+        let device = match self.device_repo.find_by_id(device_id).await? {
+            Some(d) => d,
+            None => {
+                tracing::warn!(device_id = %device_id, "设备不存在，跳过预警检查");
+                return Ok(());
+            }
+        };
+
+        let user_id = match device.owner_id {
+            Some(uid) => uid,
+            None => {
+                tracing::debug!(device_id = %device_id, "设备无所有者，跳过预警检查");
+                return Ok(());
+            }
+        };
+
         // 获取设备配置
         let config = self
             .device_repo
@@ -218,19 +235,19 @@ impl BatteryService {
         // 检查低电量预警
         if data.battery_level < config.critical_battery_threshold && !data.is_charging {
             self.alert_service
-                .trigger_critical_battery(device_id, data.battery_level as f64)
+                .trigger_critical_battery(device_id, user_id, data.battery_level as f64, config.critical_battery_threshold as f64)
                 .await?;
         } else if data.battery_level < config.low_battery_threshold && !data.is_charging {
             self.alert_service
-                .trigger_low_battery(device_id, data.battery_level as f64)
+                .trigger_low_battery(device_id, user_id, data.battery_level as f64, config.low_battery_threshold as f64)
                 .await?;
         }
 
         // 检查温度预警
         if let Some(temp) = data.temperature {
-            if temp > 45.0 {
+            if temp > config.high_temperature_threshold {
                 self.alert_service
-                    .trigger_high_temperature(device_id, temp)
+                    .trigger_high_temperature(device_id, user_id, temp, config.high_temperature_threshold)
                     .await?;
             }
         }

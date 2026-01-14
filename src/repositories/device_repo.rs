@@ -63,7 +63,7 @@ impl DeviceRepository {
 
         sqlx::query(
             r#"
-            INSERT INTO device_configs (device_id, low_battery_threshold, critical_battery_threshold, report_interval_seconds, power_saving_enabled, updated_at)
+            INSERT INTO device_configs (device_id, low_battery_threshold, critical_battery_threshold, report_interval_seconds, high_temperature_threshold, updated_at)
             VALUES ($1, $2, $3, $4, $5, NOW())
             "#,
         )
@@ -71,7 +71,7 @@ impl DeviceRepository {
         .bind(config.low_battery_threshold)
         .bind(config.critical_battery_threshold)
         .bind(config.report_interval_seconds)
-        .bind(config.power_saving_enabled)
+        .bind(config.high_temperature_threshold)
         .execute(self.pool.pool())
         .await?;
 
@@ -245,7 +245,7 @@ impl DeviceRepository {
             SET low_battery_threshold = COALESCE($2, low_battery_threshold),
                 critical_battery_threshold = COALESCE($3, critical_battery_threshold),
                 report_interval_seconds = COALESCE($4, report_interval_seconds),
-                power_saving_enabled = COALESCE($5, power_saving_enabled),
+                high_temperature_threshold = COALESCE($5, high_temperature_threshold),
                 updated_at = NOW()
             WHERE device_id = $1
             RETURNING *
@@ -255,7 +255,7 @@ impl DeviceRepository {
         .bind(request.low_battery_threshold)
         .bind(request.critical_battery_threshold)
         .bind(request.report_interval_seconds)
-        .bind(request.power_saving_enabled)
+        .bind(request.high_temperature_threshold)
         .fetch_one(self.pool.pool())
         .await?;
 
@@ -264,7 +264,7 @@ impl DeviceRepository {
 
     /// 检查用户是否有权访问设备
     pub async fn user_can_access(&self, device_id: Uuid, user_id: Uuid) -> Result<bool, AppError> {
-        let result: Option<(i64,)> = sqlx::query_as(
+        let result: Option<(i32,)> = sqlx::query_as(
             r#"
             SELECT 1 FROM devices WHERE id = $1 AND owner_id = $2
             UNION
@@ -281,7 +281,7 @@ impl DeviceRepository {
 
     /// 检查用户是否拥有设备
     pub async fn user_owns_device(&self, device_id: Uuid, user_id: Uuid) -> Result<bool, AppError> {
-        let result: Option<(i64,)> = sqlx::query_as(
+        let result: Option<(i32,)> = sqlx::query_as(
             "SELECT 1 FROM devices WHERE id = $1 AND owner_id = $2",
         )
         .bind(device_id)

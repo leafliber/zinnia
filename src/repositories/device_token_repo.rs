@@ -235,7 +235,7 @@ impl DeviceAccessTokenRepository {
 
     /// 检查用户是否拥有该令牌的设备
     pub async fn user_owns_token(&self, token_id: Uuid, user_id: Uuid) -> Result<bool, AppError> {
-        let result: Option<(i64,)> = sqlx::query_as(
+        let result: Option<(i32,)> = sqlx::query_as(
             r#"
             SELECT 1 FROM device_access_tokens t
             JOIN devices d ON t.device_id = d.id

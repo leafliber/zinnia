@@ -38,14 +38,14 @@ pub enum AlertType {
     RapidDrain,
 }
 
-/// 预警规则
+/// 预警规则（用户独立）
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct AlertRule {
     pub id: Uuid,
+    pub user_id: Uuid,
     pub name: String,
     pub alert_type: AlertType,
     pub level: AlertLevel,
-    pub threshold_value: f64,
     pub cooldown_minutes: i32,
     pub enabled: bool,
     pub created_at: DateTime<Utc>,
@@ -77,7 +77,6 @@ pub struct CreateAlertRuleRequest {
     
     pub alert_type: AlertType,
     pub level: AlertLevel,
-    pub threshold_value: f64,
     
     #[validate(range(min = 1, max = 1440, message = "冷却时间应在 1-1440 分钟之间"))]
     #[serde(default = "default_cooldown")]
@@ -98,7 +97,6 @@ pub struct UpdateAlertRuleRequest {
     
     pub alert_type: Option<AlertType>,
     pub level: Option<AlertLevel>,
-    pub threshold_value: Option<f64>,
     
     #[validate(range(min = 1, max = 1440, message = "冷却时间应在 1-1440 分钟之间"))]
     pub cooldown_minutes: Option<i32>,

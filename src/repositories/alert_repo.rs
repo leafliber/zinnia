@@ -22,23 +22,23 @@ impl AlertRepository {
 
     // ========== 预警规则 ==========
 
-    /// 创建预警规则
-    pub async fn create_rule(&self, request: &CreateAlertRuleRequest) -> Result<AlertRule, AppError> {
+    /// 创建预警规则（用户独立）
+    pub async fn create_rule(&self, user_id: Uuid, request: &CreateAlertRuleRequest) -> Result<AlertRule, AppError> {
         let id = Uuid::new_v4();
         let now = Utc::now();
 
         let rule = sqlx::query_as::<_, AlertRule>(
             r#"
-            INSERT INTO alert_rules (id, name, alert_type, level, threshold_value, cooldown_minutes, enabled, created_at, updated_at)
+            INSERT INTO alert_rules (id, user_id, name, alert_type, level, cooldown_minutes, enabled, created_at, updated_at)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING *
             "#,
         )
         .bind(id)
+        .bind(user_id)
         .bind(&request.name)
         .bind(&request.alert_type)
         .bind(&request.level)
-        .bind(request.threshold_value)
         .bind(request.cooldown_minutes)
         .bind(request.enabled)
         .bind(now)
@@ -49,22 +49,24 @@ impl AlertRepository {
         Ok(rule)
     }
 
-    /// 获取所有启用的规则
-    pub async fn get_enabled_rules(&self) -> Result<Vec<AlertRule>, AppError> {
+    /// 获取用户的所有启用规则
+    pub async fn get_enabled_rules(&self, user_id: Uuid) -> Result<Vec<AlertRule>, AppError> {
         let rules = sqlx::query_as::<_, AlertRule>(
-            "SELECT * FROM alert_rules WHERE enabled = true ORDER BY created_at",
+            "SELECT * FROM alert_rules WHERE user_id = $1 AND enabled = true ORDER BY created_at",
         )
+        .bind(user_id)
         .fetch_all(self.pool.pool())
         .await?;
 
         Ok(rules)
     }
 
-    /// 根据类型获取规则
-    pub async fn get_rule_by_type(&self, alert_type: &AlertType) -> Result<Option<AlertRule>, AppError> {
+    /// 根据类型获取用户的规则
+    pub async fn get_rule_by_type(&self, user_id: Uuid, alert_type: &AlertType) -> Result<Option<AlertRule>, AppError> {
         let rule = sqlx::query_as::<_, AlertRule>(
-            "SELECT * FROM alert_rules WHERE alert_type = $1 AND enabled = true",
+            "SELECT * FROM alert_rules WHERE user_id = $1 AND alert_type = $2 AND enabled = true",
         )
+        .bind(user_id)
         .bind(alert_type)
         .fetch_optional(self.pool.pool())
         .await?;
@@ -72,64 +74,65 @@ impl AlertRepository {
         Ok(rule)
     }
 
-    /// 根据 ID 获取规则
-    pub async fn get_rule_by_id(&self, rule_id: Uuid) -> Result<Option<AlertRule>, AppError> {
+    /// 根据 ID 获取规则（仅限用户自己的规则）
+    pub async fn get_rule_by_id(&self, rule_id: Uuid, user_id: Uuid) -> Result<Option<AlertRule>, AppError> {
         let rule = sqlx::query_as::<_, AlertRule>(
-            "SELECT * FROM alert_rules WHERE id = $1",
+            "SELECT * FROM alert_rules WHERE id = $1 AND user_id = $2",
         )
         .bind(rule_id)
+        .bind(user_id)
         .fetch_optional(self.pool.pool())
         .await?;
 
         Ok(rule)
     }
 
-    /// 更新预警规则
-    pub async fn update_rule(&self, rule_id: Uuid, request: &UpdateAlertRuleRequest) -> Result<AlertRule, AppError> {
+    /// 更新预警规则（仅限用户自己的规则）
+    pub async fn update_rule(&self, rule_id: Uuid, user_id: Uuid, request: &UpdateAlertRuleRequest) -> Result<AlertRule, AppError> {
         let now = Utc::now();
         
         // 使用 COALESCE 实现部分更新
         let rule = sqlx::query_as::<_, AlertRule>(
             r#"
             UPDATE alert_rules SET
-                name = COALESCE($2, name),
-                alert_type = COALESCE($3, alert_type),
-                level = COALESCE($4, level),
-                threshold_value = COALESCE($5, threshold_value),
+                name = COALESCE($3, name),
+                alert_type = COALESCE($4, alert_type),
+                level = COALESCE($5, level),
                 cooldown_minutes = COALESCE($6, cooldown_minutes),
                 enabled = COALESCE($7, enabled),
                 updated_at = $8
-            WHERE id = $1
+            WHERE id = $1 AND user_id = $2
             RETURNING *
             "#,
         )
         .bind(rule_id)
+        .bind(user_id)
         .bind(&request.name)
         .bind(&request.alert_type)
         .bind(&request.level)
-        .bind(request.threshold_value)
         .bind(request.cooldown_minutes)
         .bind(request.enabled)
         .bind(now)
         .fetch_one(self.pool.pool())
         .await
         .map_err(|e| match e {
-            sqlx::Error::RowNotFound => AppError::NotFound(format!("预警规则不存在: {}", rule_id)),
+            sqlx::Error::RowNotFound => AppError::NotFound(format!("预警规则不存在或无权访问: {}", rule_id)),
             _ => e.into(),
         })?;
 
         Ok(rule)
     }
 
-    /// 删除预警规则
-    pub async fn delete_rule(&self, rule_id: Uuid) -> Result<(), AppError> {
-        let result = sqlx::query("DELETE FROM alert_rules WHERE id = $1")
+    /// 删除预警规则（仅限用户自己的规则）
+    pub async fn delete_rule(&self, rule_id: Uuid, user_id: Uuid) -> Result<(), AppError> {
+        let result = sqlx::query("DELETE FROM alert_rules WHERE id = $1 AND user_id = $2")
             .bind(rule_id)
+            .bind(user_id)
             .execute(self.pool.pool())
             .await?;
 
         if result.rows_affected() == 0 {
-            return Err(AppError::NotFound(format!("预警规则不存在: {}", rule_id)));
+            return Err(AppError::NotFound(format!("预警规则不存在或无权访问: {}", rule_id)));
         }
 
         Ok(())
@@ -137,12 +140,13 @@ impl AlertRepository {
 
     // ========== 预警事件 ==========
 
-    /// 创建预警事件
+    /// 创建预警事件（使用设备配置的阈值）
     pub async fn create_event(
         &self,
         device_id: Uuid,
         rule: &AlertRule,
         value: f64,
+        threshold: f64,
         message: &str,
     ) -> Result<AlertEvent, AppError> {
         let id = Uuid::new_v4();
@@ -162,7 +166,7 @@ impl AlertRepository {
         .bind(AlertStatus::Active)
         .bind(message)
         .bind(value)
-        .bind(rule.threshold_value)
+        .bind(threshold)
         .fetch_one(self.pool.pool())
         .await?;
 
@@ -193,85 +197,162 @@ impl AlertRepository {
         Ok(result.map(|r| r.0 > 0).unwrap_or(false))
     }
 
-    /// 更新预警状态
+    /// 更新预警状态（限制用户只能操作自己设备的预警）
     pub async fn update_event_status(
         &self,
         event_id: Uuid,
+        user_id: Uuid,
         request: &UpdateAlertStatusRequest,
     ) -> Result<AlertEvent, AppError> {
         let event = match request.status {
             AlertStatus::Acknowledged => {
                 sqlx::query_as::<_, AlertEvent>(
-                    "UPDATE alert_events SET status = $2, acknowledged_at = NOW() WHERE id = $1 RETURNING *",
+                    r#"
+                    UPDATE alert_events SET status = $2, acknowledged_at = NOW() 
+                    WHERE id = $1 AND device_id IN (
+                        SELECT id FROM devices WHERE owner_id = $3
+                        UNION
+                        SELECT device_id FROM device_shares WHERE user_id = $3
+                    )
+                    RETURNING *
+                    "#,
                 )
                 .bind(event_id)
                 .bind(&request.status)
+                .bind(user_id)
                 .fetch_one(self.pool.pool())
-                .await?
+                .await
+                .map_err(|e| match e {
+                    sqlx::Error::RowNotFound => AppError::NotFound("预警不存在或无权访问".to_string()),
+                    _ => e.into(),
+                })?
             }
             AlertStatus::Resolved => {
                 sqlx::query_as::<_, AlertEvent>(
-                    "UPDATE alert_events SET status = $2, resolved_at = NOW() WHERE id = $1 RETURNING *",
+                    r#"
+                    UPDATE alert_events SET status = $2, resolved_at = NOW() 
+                    WHERE id = $1 AND device_id IN (
+                        SELECT id FROM devices WHERE owner_id = $3
+                        UNION
+                        SELECT device_id FROM device_shares WHERE user_id = $3
+                    )
+                    RETURNING *
+                    "#,
                 )
                 .bind(event_id)
                 .bind(&request.status)
+                .bind(user_id)
                 .fetch_one(self.pool.pool())
-                .await?
+                .await
+                .map_err(|e| match e {
+                    sqlx::Error::RowNotFound => AppError::NotFound("预警不存在或无权访问".to_string()),
+                    _ => e.into(),
+                })?
             }
             _ => {
                 sqlx::query_as::<_, AlertEvent>(
-                    "UPDATE alert_events SET status = $2 WHERE id = $1 RETURNING *",
+                    r#"
+                    UPDATE alert_events SET status = $2 
+                    WHERE id = $1 AND device_id IN (
+                        SELECT id FROM devices WHERE owner_id = $3
+                        UNION
+                        SELECT device_id FROM device_shares WHERE user_id = $3
+                    )
+                    RETURNING *
+                    "#,
                 )
                 .bind(event_id)
                 .bind(&request.status)
+                .bind(user_id)
                 .fetch_one(self.pool.pool())
-                .await?
+                .await
+                .map_err(|e| match e {
+                    sqlx::Error::RowNotFound => AppError::NotFound("预警不存在或无权访问".to_string()),
+                    _ => e.into(),
+                })?
             }
         };
 
         Ok(event)
     }
 
-    /// 查询预警事件列表
-    pub async fn list_events(&self, query: &AlertListQuery) -> Result<(Vec<AlertEvent>, i64), AppError> {
+    /// 查询预警事件列表（限制用户只能查询自己设备的预警）
+    pub async fn list_events(&self, user_id: Uuid, query: &AlertListQuery) -> Result<(Vec<AlertEvent>, i64), AppError> {
         let offset = (query.page - 1) * query.page_size;
 
-        // 构建动态条件（注意：生产环境应使用参数化查询）
-        let mut conditions = vec!["1=1".to_string()];
+        // 构建基础条件：只查询用户设备的预警
+        let mut conditions = vec![
+            r#"device_id IN (
+                SELECT id FROM devices WHERE owner_id = $1
+                UNION
+                SELECT device_id FROM device_shares WHERE user_id = $1
+            )"#.to_string(),
+        ];
+        let mut param_index = 2;
 
-        if let Some(ref device_id) = query.device_id {
-            conditions.push(format!("device_id = '{}'", device_id));
+        // 添加可选过滤条件
+        if query.device_id.is_some() {
+            conditions.push(format!("device_id = ${}", param_index));
+            param_index += 1;
         }
-        if let Some(ref level) = query.level {
-            conditions.push(format!("level = '{:?}'", level).to_lowercase());
+        if query.level.is_some() {
+            conditions.push(format!("level = ${}", param_index));
+            param_index += 1;
         }
-        if let Some(ref status) = query.status {
-            conditions.push(format!("status = '{:?}'", status).to_lowercase());
+        if query.status.is_some() {
+            conditions.push(format!("status = ${}", param_index));
+            param_index += 1;
         }
-        if let Some(ref alert_type) = query.alert_type {
-            conditions.push(format!("alert_type = '{:?}'", alert_type).to_lowercase());
+        if query.alert_type.is_some() {
+            conditions.push(format!("alert_type = ${}", param_index));
         }
 
         let where_clause = conditions.join(" AND ");
 
         // 查询总数
         let count_sql = format!("SELECT COUNT(*) FROM alert_events WHERE {}", where_clause);
-        let total: (i64,) = sqlx::query_as(&count_sql)
-            .fetch_one(self.pool.pool())
-            .await?;
+        let mut count_query = sqlx::query_as::<_, (i64,)>(&count_sql).bind(user_id);
+        if let Some(device_id) = query.device_id {
+            count_query = count_query.bind(device_id);
+        }
+        if let Some(ref level) = query.level {
+            count_query = count_query.bind(level);
+        }
+        if let Some(ref status) = query.status {
+            count_query = count_query.bind(status);
+        }
+        if let Some(ref alert_type) = query.alert_type {
+            count_query = count_query.bind(alert_type);
+        }
+        let total = count_query.fetch_one(self.pool.pool()).await?.0;
 
         // 查询数据
         let list_sql = format!(
-            "SELECT * FROM alert_events WHERE {} ORDER BY triggered_at DESC LIMIT $1 OFFSET $2",
-            where_clause
+            "SELECT * FROM alert_events WHERE {} ORDER BY triggered_at DESC LIMIT ${} OFFSET ${}",
+            where_clause,
+            param_index,
+            param_index + 1
         );
-        let events = sqlx::query_as::<_, AlertEvent>(&list_sql)
+        let mut list_query = sqlx::query_as::<_, AlertEvent>(&list_sql).bind(user_id);
+        if let Some(device_id) = query.device_id {
+            list_query = list_query.bind(device_id);
+        }
+        if let Some(ref level) = query.level {
+            list_query = list_query.bind(level);
+        }
+        if let Some(ref status) = query.status {
+            list_query = list_query.bind(status);
+        }
+        if let Some(ref alert_type) = query.alert_type {
+            list_query = list_query.bind(alert_type);
+        }
+        let events = list_query
             .bind(query.page_size)
             .bind(offset)
             .fetch_all(self.pool.pool())
             .await?;
 
-        Ok((events, total.0))
+        Ok((events, total))
     }
 
     /// 获取设备的活跃预警数

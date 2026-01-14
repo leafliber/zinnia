@@ -8,7 +8,7 @@ use crate::models::{
     ShareDeviceRequest,
 };
 use crate::repositories::DeviceRepository;
-use crate::services::UserService;
+use crate::services::{UserService, AlertService};
 use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -19,6 +19,7 @@ use validator::Validate;
 /// 用户注册
 pub async fn register(
     user_service: web::Data<Arc<UserService>>,
+    alert_service: web::Data<Arc<AlertService>>,
     body: web::Json<RegisterRequest>,
 ) -> Result<HttpResponse, AppError> {
     // 验证请求
@@ -26,6 +27,45 @@ pub async fn register(
         .map_err(|e| AppError::ValidationError(e.to_string()))?;
 
     let user_info = user_service.register(body.into_inner()).await?;
+
+    // 为新用户创建默认预警规则（非阻塞，出错记录但不影响注册）
+    let user_id = user_info.id;
+    let defaults = vec![
+        crate::models::CreateAlertRuleRequest {
+            name: "低电量预警".to_string(),
+            alert_type: crate::models::AlertType::LowBattery,
+            level: crate::models::AlertLevel::Warning,
+            cooldown_minutes: 20,
+            enabled: true,
+        },
+        crate::models::CreateAlertRuleRequest {
+            name: "临界电量预警".to_string(),
+            alert_type: crate::models::AlertType::CriticalBattery,
+            level: crate::models::AlertLevel::Critical,
+            cooldown_minutes: 5,
+            enabled: false,
+        },
+        crate::models::CreateAlertRuleRequest {
+            name: "高温预警".to_string(),
+            alert_type: crate::models::AlertType::HighTemperature,
+            level: crate::models::AlertLevel::Warning,
+            cooldown_minutes: 50,
+            enabled: false,
+        },
+        crate::models::CreateAlertRuleRequest {
+            name: "设备离线".to_string(),
+            alert_type: crate::models::AlertType::DeviceOffline,
+            level: crate::models::AlertLevel::Info,
+            cooldown_minutes: 1440,
+            enabled: false,
+        },
+    ];
+
+    for d in defaults {
+        if let Err(e) = alert_service.create_rule(user_id, d).await {
+            tracing::warn!(user_id = %user_id, error = %e, "创建默认预警规则失败，继续注册");
+        }
+    }
 
     Ok(HttpResponse::Created().json(ApiResponse::success(user_info)))
 }
