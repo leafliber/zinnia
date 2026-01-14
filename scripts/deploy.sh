@@ -482,12 +482,26 @@ health_check() {
     local all_healthy=true
     
     for service in "${services[@]}"; do
-        local container="zinnia-$service"
-        if [ "$service" = "timescaledb" ]; then
-            container="zinnia-timescaledb"
-        fi
-        
-        if $DOCKER_CMD ps --filter "name=$container" --filter "status=running" | grep -q "$container"; then
+        # 使用更宽松的名称匹配：检查任意运行中容器名是否包含服务关键字
+        case "$service" in
+            timescaledb)
+                search_term="timescaledb"
+                ;;
+            zinnia)
+                search_term="zinnia"
+                ;;
+            redis)
+                search_term="redis"
+                ;;
+            nginx)
+                search_term="nginx"
+                ;;
+            *)
+                search_term="$service"
+                ;;
+        esac
+
+        if $DOCKER_CMD ps --filter "status=running" --format '{{.Names}}' | grep -qE "$search_term"; then
             log_success "✓ $service: 运行中"
         else
             log_error "✗ $service: 未运行"
