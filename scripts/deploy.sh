@@ -382,8 +382,15 @@ build_and_start() {
             log_info "未检测到 $ROOT_DIR/Cargo.lock，正在生成..."
             cargo generate-lockfile
             log_success "Cargo.lock 已生成"
+        elif command -v docker >/dev/null 2>&1; then
+            log_info "未检测到本地 cargo，尝试使用 Docker 临时容器生成 Cargo.lock..."
+            if docker run --rm -v "$ROOT_DIR":/work -w /work --user "$(id -u):$(id -g)" rust:latest cargo generate-lockfile; then
+                log_success "Cargo.lock 已通过 Docker 生成"
+            else
+                log_warn "使用 Docker 生成 Cargo.lock 失败，构建可能仍会失败"
+            fi
         else
-            log_warn "未检测到 $ROOT_DIR/Cargo.lock，且系统无 cargo，跳过生成 Cargo.lock（构建可能失败）"
+            log_warn "未检测到 $ROOT_DIR/Cargo.lock，且系统无 cargo 或 docker，跳过生成 Cargo.lock（构建可能失败）"
         fi
     fi
 
