@@ -376,6 +376,17 @@ build_and_start() {
     $COMPOSE -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull timescaledb redis nginx certbot --ignore-pull-failures || true
     
     log_info "构建应用镜像..."
+    # 如果仓库缺少 Cargo.lock，则尝试生成（有 cargo 时）
+    if [ ! -f Cargo.lock ]; then
+        if command -v cargo >/dev/null 2>&1; then
+            log_info "未检测到 Cargo.lock，正在生成..."
+            cargo generate-lockfile
+            log_success "Cargo.lock 已生成"
+        else
+            log_warn "未检测到 Cargo.lock，且系统无 cargo，跳过生成 Cargo.lock（构建可能失败）"
+        fi
+    fi
+
     $COMPOSE -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build --pull
     
     log_info "启动所有服务..."
