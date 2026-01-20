@@ -135,7 +135,7 @@ else
     echo ""
     echo "建议采取以下措施："
     echo "  1. 确保 docker-compose.prod.yml 设置 APP_ENV=production"
-    echo "  2. 确保所有必需的环境变量已配置（参考 .env.template）"
+    echo "  2. 确保所有必需的环境变量已配置（参考 .env.example）"
     echo "  3. 检查所有 secrets 文件是否存在且权限正确"
     exit 1
 fi
