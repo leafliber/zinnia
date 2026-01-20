@@ -11,7 +11,7 @@ use crate::models::{
 use crate::repositories::{DeviceRepository, NotificationRepository};
 use crate::services::alert_service::NotificationSender;
 use crate::services::{EmailService, WebPushService};
-use chrono::{Local, Utc};
+use chrono::Utc;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -150,7 +150,7 @@ impl NotificationService {
 
         // 获取设备信息
         let device = self.device_repo
-            .get_device_by_id(alert_event.device_id)
+            .find_by_id(alert_event.device_id)
             .await?
             .ok_or_else(|| AppError::NotFound("设备不存在".to_string()))?;
 
@@ -173,7 +173,13 @@ impl NotificationService {
         if let Err(e) = self.send_webhook_notification(&preference, alert_event, &device.name).await {
             tracing::error!(
                 error = %e,
-         
+                user_id = %user_id,
+                alert_id = %alert_event.id,
+                "Webhook通知发送失败"
+            );
+        } else if self.is_webhook_enabled(&preference) {
+            sent_any = true;
+        }
 
         // 3. Web Push 通知
         if let Err(e) = self.send_web_push_notification(&preference, alert_event, &device.name).await {
@@ -184,12 +190,6 @@ impl NotificationService {
                 "Web Push 通知发送失败"
             );
         } else if self.is_web_push_enabled(&preference) {
-            sent_any = true;
-        }       user_id = %user_id,
-                alert_id = %alert_event.id,
-                "Webhook通知发送失败"
-            );
-        } else if self.is_webhook_enabled(&preference) {
             sent_any = true;
         }
 
@@ -333,20 +333,8 @@ impl NotificationService {
             }
         }
 
-        // 创建待发送记录
-        let history = self.notification_repo
-            .create_notification_history(
-                alert_event.id,
-                preference.user_id,
-                NotificationChannel::Webhook,
-                &webhook_config.url,
-                "pending",
-                None,
-            )
-            .await?;
-
         // 构建Webhook负载
-        let payload = serde_json::json!({
+        let _payload = serde_json::json!({
             "alert_id": alert_event.id,
             "device_name": device_name,
             "alert_type": alert_event.alert_type,
@@ -359,7 +347,23 @@ impl NotificationService {
 
         // 这里可以实现实际的HTTP请求发送
         // 目前记录为待实现
-      / 发送 Web Push 通知
+
+        // 记录通知历史
+        self.notification_repo
+            .create_notification_history(
+                alert_event.id,
+                preference.user_id,
+                NotificationChannel::Webhook,
+                &webhook_config.url,
+                "sent",
+                None,
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// 发送 Web Push 通知
     async fn send_web_push_notification(
         &self,
         preference: &UserNotificationPreference,
@@ -399,14 +403,6 @@ impl NotificationService {
                 self.notification_repo
                     .create_notification_history(
                         alert_event.id,
-
-    /// 检查 Web Push 是否启用
-    fn is_web_push_enabled(&self, preference: &UserNotificationPreference) -> bool {
-        preference.web_push_config
-            .as_ref()
-            .and_then(|v| serde_json::from_value::<WebPushNotificationConfig>(v.clone()).ok())
-            .map_or(false, |c| c.enabled)
-    }
                         preference.user_id,
                         NotificationChannel::Push,
                         "web_push",
@@ -432,7 +428,7 @@ impl NotificationService {
             .await?;
 
         // 构建通知内容
-        let title = format!("{:?} - {}", alert_event.level, alert_event.alert_type);
+        let title = format!("{:?} - {:?}", alert_event.level, alert_event.alert_type);
         let body = format!("{} | {}", device_name, alert_event.message);
         let data = Some(serde_json::json!({
             "alert_id": alert_event.id,
@@ -469,17 +465,33 @@ impl NotificationService {
         Ok(())
     }
 
-    //  tracing::info!(
+    // ========== Webhook 通知（待实现）==========
+    /*
+    async fn send_webhook_notification(
+        &self,
+        preference: &UserNotificationPreference,
+        alert_event: &AlertEvent,
+        device_name: &str,
+    ) -> Result<(), AppError> {
+        let webhook_config: WebhookNotificationConfig = match &preference.webhook_config {
+            Some(v) => serde_json::from_value(v.clone())
+                .map_err(|_| AppError::ConfigError("Webhook配置无效".to_string()))?,
+            None => return Ok(()),
+        };
+
+        if !webhook_config.enabled {
+            return Ok(());
+        }
+
+        // TODO: 实现 Webhook 发送逻辑
+        tracing::info!(
             webhook_url = %webhook_config.url,
             "Webhook通知已准备（实现待补充）"
         );
 
-        self.notification_repo
-            .update_notification_status(history.id, "sent", None)
-            .await?;
-
         Ok(())
     }
+    */
 
     // ========== 辅助方法 ==========
 
@@ -519,6 +531,14 @@ impl NotificationService {
         preference.webhook_config
             .as_ref()
             .and_then(|v| serde_json::from_value::<WebhookNotificationConfig>(v.clone()).ok())
+            .map_or(false, |c| c.enabled)
+    }
+
+    /// 检查Web Push是否启用
+    fn is_web_push_enabled(&self, preference: &UserNotificationPreference) -> bool {
+        preference.web_push_config
+            .as_ref()
+            .and_then(|v| serde_json::from_value::<WebPushNotificationConfig>(v.clone()).ok())
             .map_or(false, |c| c.enabled)
     }
 }

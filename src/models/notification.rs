@@ -123,6 +123,7 @@ pub struct UserNotificationPreference {
     pub webhook_config: Option<serde_json::Value>,
     pub sms_config: Option<serde_json::Value>,
     pub push_config: Option<serde_json::Value>,
+    pub web_push_config: Option<serde_json::Value>,
     
     /// 预警级别过滤
     pub notify_info: bool,
@@ -170,11 +171,11 @@ pub struct UpdateNotificationPreferenceRequest {
     
     /// Webhook通知配置
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub webhook_config: Option<WebhookNotificationConfig>,
     
     /// Web Push通知配置
     #[serde(skip_serializing_if = "Option::is_none")]
     pub web_push_config: Option<WebPushNotificationConfig>,
-    pub webhook_config: Option<WebhookNotificationConfig>,
     
     /// 预警级别过滤
     pub notify_info: Option<bool>,
@@ -223,7 +224,14 @@ pub struct NotificationPreferenceResponse {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
-
+impl NotificationPreferenceResponse {
+    pub fn from(pref: UserNotificationPreference) -> Self {
+        let email_config: Option<EmailNotificationConfig> = pref.email_config
+            .and_then(|v| serde_json::from_value(v).ok());
+        
+        let webhook_config: Option<WebhookNotificationConfig> = pref.webhook_config
+            .and_then(|v| serde_json::from_value(v).ok());
+        
         let web_push_config: Option<WebPushNotificationConfig> = pref.web_push_config
             .and_then(|v| serde_json::from_value(v).ok());
         
@@ -240,14 +248,6 @@ pub struct NotificationPreferenceResponse {
             
             web_push_enabled: web_push_config.as_ref().map_or(false, |c| c.enabled),
             web_push_subscriptions_count: 0,  // 需要单独查询
-            user_id: pref.user_id,
-            enabled: pref.enabled,
-            
-            email_enabled: email_config.as_ref().map_or(false, |c| c.enabled),
-            email_address: email_config.map(|c| c.email),
-            
-            webhook_enabled: webhook_config.as_ref().map_or(false, |c| c.enabled),
-            webhook_url: webhook_config.map(|c| c.url),
             
             notify_info: pref.notify_info,
             notify_warning: pref.notify_warning,

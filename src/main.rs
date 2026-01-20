@@ -72,12 +72,7 @@ async fn main() -> std::io::Result<()> {
     let cache_service = Arc::new(CacheService::new(redis_pool.clone()));
     let mut alert_service = AlertService::new(alert_repo);
     let device_service = Arc::new(DeviceService::new((*device_repo).clone(), redis_pool.clone()));
-    let battery_service = Arc::new(BatteryService::new(
-        battery_repo,
-        (*device_repo).clone(),
-        Arc::new(alert_service.clone()),
-        redis_pool.clone(),
-    ));
+    
     let user_service = Arc::new(UserService::new(
         user_repo,
         jwt_manager.clone(),
@@ -136,6 +131,14 @@ async fn main() -> std::io::Result<()> {
     // 设置 AlertService 的通知服务（避免循环依赖）
     alert_service.set_notification_service(notification_service.clone());
     let alert_service = Arc::new(alert_service);
+
+    // 现在初始化 BatteryService（需要 alert_service 的 Arc）
+    let battery_service = Arc::new(BatteryService::new(
+        battery_repo,
+        (*device_repo).clone(),
+        alert_service.clone(),
+        redis_pool.clone(),
+    ));
 
     info!("✅ 安全服务初始化完成");
 

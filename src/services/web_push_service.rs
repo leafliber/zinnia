@@ -7,6 +7,8 @@ use crate::errors::AppError;
 use crate::models::{WebPushSubscription};
 use crate::repositories::NotificationRepository;
 use base64::{engine::general_purpose, Engine};
+use secrecy::ExposeSecret;
+use web_push::URL_SAFE_NO_PAD;
 use std::sync::Arc;
 use uuid::Uuid;
 use web_push::{
@@ -87,20 +89,28 @@ impl WebPushService {
             },
         };
 
-        // 构建签名
-        let sig_builder = VapidSignatureBuilder::from_base64_no_sub(
-            &self.vapid_private_key,
-            subscription_info.endpoint.as_str(),
+        // 构建签名（将私钥转换为base64字符串）
+        let vapid_key_base64 = general_purpose::URL_SAFE_NO_PAD.encode(&self.vapid_private_key);
+        
+        // 先创建不带订阅信息的 builder，然后添加订阅信息
+        let partial_builder = VapidSignatureBuilder::from_base64_no_sub(
+            &vapid_key_base64,
+            URL_SAFE_NO_PAD,
         )
-        .map_err(|e| AppError::InternalError(format!("创建 VAPID 签名失败: {}", e)))?;
+        .map_err(|e| AppError::InternalError(format!("创建 VAPID builder 失败: {}", e)))?;
+        
+        let mut sig_builder = partial_builder.add_sub_info(&subscription_info);
 
+        sig_builder.add_claim("sub", self.subject.clone());
+        
         let signature = sig_builder
-            .add_claim("sub", self.subject.as_str())
             .build()
             .map_err(|e| AppError::InternalError(format!("构建 VAPID 签名失败: {}", e)))?;
 
         // 构建消息
-        let mut message_builder = WebPushMessageBuilder::new(&subscription_info);
+        let mut message_builder = WebPushMessageBuilder::new(&subscription_info)
+            .map_err(|e| AppError::InternalError(format!("创建消息构建器失败: {}", e)))?;
+        
         message_builder.set_payload(ContentEncoding::Aes128Gcm, payload_json.as_bytes());
         message_builder.set_vapid_signature(signature);
 
@@ -109,8 +119,7 @@ impl WebPushService {
             .map_err(|e| AppError::InternalError(format!("构建推送消息失败: {}", e)))?;
 
         // 发送推送
-        let response = self
-            .client
+        self.client
             .send(message)
             .await
             .map_err(|e| {
@@ -134,14 +143,6 @@ impl WebPushService {
                 
                 AppError::InternalError(format!("Web Push 发送失败: {}", e))
             })?;
-
-        // 检查响应状态
-        if !response.is_success() {
-            return Err(AppError::InternalError(format!(
-                "Web Push 响应失败: {}",
-                response.status_code
-            )));
-        }
 
         // 更新最后使用时间
         self.notification_repo
