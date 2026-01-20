@@ -12,13 +12,13 @@ use zinnia::{
     config::Settings,
     db::{PostgresPool, RedisPool},
     middleware::{JwtAuth, JwtOrApiKeyAuth, RequestLogger, RequestValidator, SecurityHeaders},
-    repositories::{AlertRepository, BatteryRepository, DeviceAccessTokenRepository, DeviceRepository, UserRepository},
+    repositories::{AlertRepository, BatteryRepository, DeviceAccessTokenRepository, DeviceRepository, NotificationRepository, UserRepository},
     routes,
     security::{JwtManager, Secrets},
     services::{
         AlertService, AuthService, BatteryService, CacheService, DeviceAccessTokenService, 
-        DeviceService, EmailService, RecaptchaService, RegistrationSecurityService, 
-        UserService, VerificationService,
+        DeviceService, EmailService, NotificationService, RecaptchaService, RegistrationSecurityService, 
+        UserService, VerificationService, WebPushService,
     },
     websocket,
 };
@@ -66,15 +66,16 @@ async fn main() -> std::io::Result<()> {
     let alert_repo = AlertRepository::new((*pg_pool).clone());
     let user_repo = UserRepository::new((*pg_pool).clone());
     let device_token_repo = DeviceAccessTokenRepository::new((*pg_pool).clone());
+    let notification_repo = Arc::new(NotificationRepository::new((*pg_pool).clone()));
 
     // 初始化服务
     let cache_service = Arc::new(CacheService::new(redis_pool.clone()));
-    let alert_service = Arc::new(AlertService::new(alert_repo));
+    let mut alert_service = AlertService::new(alert_repo);
     let device_service = Arc::new(DeviceService::new((*device_repo).clone(), redis_pool.clone()));
     let battery_service = Arc::new(BatteryService::new(
         battery_repo,
         (*device_repo).clone(),
-        alert_service.clone(),
+        Arc::new(alert_service.clone()),
         redis_pool.clone(),
     ));
     let user_service = Arc::new(UserService::new(
@@ -108,6 +109,33 @@ async fn main() -> std::io::Result<()> {
         redis_pool.clone(),
         &settings,
     ));
+
+    // 初始化通知服务
+    let mut notification_service = NotificationService::new(
+        (*notification_repo).clone(),
+        (*device_repo).clone(),
+        email_service.clone(),
+    );
+
+    // 尝试初始化 Web Push 服务（需要 VAPID 密钥）
+    let web_push_service_opt = match WebPushService::new(&settings, notification_repo.clone()) {
+        Ok(service) => {
+            let service = Arc::new(service);
+            notification_service.set_web_push_service(service.clone());
+            info!("✅ Web Push 服务初始化完成");
+            Some(service)
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "Web Push 服务初始化失败（需要配置 VAPID 密钥）");
+            None
+        }
+    };
+
+    let notification_service = Arc::new(notification_service);
+
+    // 设置 AlertService 的通知服务（避免循环依赖）
+    alert_service.set_notification_service(notification_service.clone());
+    let alert_service = Arc::new(alert_service);
 
     info!("✅ 安全服务初始化完成");
 
@@ -165,6 +193,8 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(verification_service.clone()))
             .app_data(web::Data::new(recaptcha_service.clone()))
             .app_data(web::Data::new(registration_security_service.clone()))
+            .app_data(web::Data::new(notification_service.clone()))
+            .app_data(web::Data::new(web_push_service_opt.clone()))
             // 配置 HTTP 路由
             .configure(|cfg| routes::configure(cfg, jwt_auth.clone(), jwt_or_apikey_auth.clone()))
             // 配置 WebSocket 路由

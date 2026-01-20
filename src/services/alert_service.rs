@@ -6,16 +6,32 @@ use crate::models::{
     CreateAlertRuleRequest, PaginatedResponse, Pagination, UpdateAlertRuleRequest, UpdateAlertStatusRequest,
 };
 use crate::repositories::AlertRepository;
+use std::sync::Arc;
 use uuid::Uuid;
 
 /// 预警业务服务
 pub struct AlertService {
     alert_repo: AlertRepository,
+    notification_service: Option<Arc<dyn NotificationSender>>,
+}
+
+/// 通知发送器trait（用于依赖注入）
+#[async_trait::async_trait]
+pub trait NotificationSender: Send + Sync {
+    async fn send_alert_notification(&self, alert_event: &AlertEvent, user_id: Uuid) -> Result<(), AppError>;
 }
 
 impl AlertService {
     pub fn new(alert_repo: AlertRepository) -> Self {
-        Self { alert_repo }
+        Self { 
+            alert_repo,
+            notification_service: None,
+        }
+    }
+
+    /// 设置通知服务（延迟注入，避免循环依赖）
+    pub fn set_notification_service(&mut self, notification_service: Arc<dyn NotificationSender>) {
+        self.notification_service = Some(notification_service);
     }
 
     /// 创建预警规则（用户独立）
@@ -163,6 +179,19 @@ impl AlertService {
         );
 
         // TODO: 发送通知（webhook、邮件等）
+        // 发送通知
+        if let Some(ref notification_service) = self.notification_service {
+            // 获取设备所属用户ID
+            if let Err(e) = notification_service.send_alert_notification(&event, user_id).await {
+                tracing::error!(
+                    error = %e,
+                    alert_id = %event.id,
+                    user_id = %user_id,
+                    "通知发送失败"
+                );
+                // 通知发送失败不影响预警记录
+            }
+        }
 
         Ok(Some(event))
     }

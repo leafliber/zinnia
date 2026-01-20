@@ -11,6 +11,8 @@ mod email_service;
 mod verification_service;
 mod recaptcha_service;
 mod registration_security_service;
+mod notification_service;
+mod web_push_service;
 
 pub use battery_service::BatteryService;
 pub use device_service::DeviceService;
@@ -23,3 +25,5 @@ pub use email_service::EmailService;
 pub use verification_service::{VerificationService, VerificationCodeType};
 pub use recaptcha_service::{RecaptchaService, RecaptchaVerifyResult};
 pub use registration_security_service::{RegistrationSecurityService, RegistrationCheckResult};
+pub use notification_service::NotificationService;
+pub use web_push_service::WebPushService;

@@ -297,6 +297,16 @@ impl Settings {
         env::var("RECAPTCHA_SECRET_KEY").ok().map(SecretString::new)
     }
 
+    /// 获取 VAPID 私钥（从环境变量）
+    pub fn vapid_private_key() -> Option<SecretString> {
+        env::var("VAPID_PRIVATE_KEY").ok().map(SecretString::new)
+    }
+
+    /// 获取 VAPID 公钥（从环境变量）
+    pub fn vapid_public_key() -> Option<String> {
+        env::var("VAPID_PUBLIC_KEY").ok()
+    }
+
     /// 获取服务器地址
     pub fn server_addr(&self) -> String {
         format!("{}:{}", self.server.host, self.server.port)

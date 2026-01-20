@@ -87,6 +87,43 @@ if [ ! -f .env ]; then
     sed -i.bak "s|your_base64_encoded_32_byte_key_here|$ENCRYPTION_KEY|g" .env
     sed -i.bak "s|your_password_here|$DB_PASSWORD|g" .env
     sed -i.bak "s|your_redis_password|$REDIS_PASSWORD|g" .env
+    
+    # 询问是否生成 VAPID 密钥（可选）
+    echo ""
+    read -p "是否生成 Web Push VAPID 密钥？[y/N] " -r gen_vapid
+    if [[ $gen_vapid =~ ^[Yy]$ ]]; then
+        # 优先使用本机 Docker/Podman 运行临时容器生成密钥
+        if command -v docker >/dev/null 2>&1; then
+            echo "  ⏳ 使用 Docker 临时容器生成 VAPID 密钥..."
+            vapid_keys=$(docker run --rm -v "$(pwd)":/work -w /work node:18-bullseye-slim npx -y web-push generate-vapid-keys --json 2>/dev/null || echo "")
+        elif command -v podman >/dev/null 2>&1; then
+            echo "  ⏳ 使用 Podman 临时容器生成 VAPID 密钥..."
+            vapid_keys=$(podman run --rm -v "$(pwd)":/work -w /work docker.io/node:18-bullseye-slim npx -y web-push generate-vapid-keys --json 2>/dev/null || echo "")
+        elif command -v npx >/dev/null 2>&1; then
+            echo "  ⏳ 使用本地 npx 生成 VAPID 密钥..."
+            vapid_keys=$(npx -y web-push generate-vapid-keys --json 2>/dev/null || echo "")
+        else
+            vapid_keys=""
+        fi
+
+        if [ -n "$vapid_keys" ]; then
+            VAPID_PUBLIC=$(echo "$vapid_keys" | grep -o '"publicKey":"[^"]*"' | cut -d'"' -f4)
+            VAPID_PRIVATE=$(echo "$vapid_keys" | grep -o '"privateKey":"[^"]*"' | cut -d'"' -f4)
+
+            if [ -n "$VAPID_PUBLIC" ] && [ -n "$VAPID_PRIVATE" ]; then
+                sed -i.bak "s|your_vapid_public_key_here|$VAPID_PUBLIC|g" .env
+                sed -i.bak "s|your_vapid_private_key_here|$VAPID_PRIVATE|g" .env
+                echo "  ✅ VAPID 密钥已生成"
+            else
+                echo "  ⚠️ VAPID 密钥生成失败，请稍后手动配置"
+            fi
+        else
+            echo "  ⚠️ 未检测到可用的生成工具（Docker/Podman/npx），请稍后手动生成: npx web-push generate-vapid-keys 或 使用 ./scripts/generate-vapid-keys.sh"
+        fi
+    else
+        echo "  ⏭️  跳过 VAPID 密钥生成（可稍后手动添加）"
+    fi
+    
     rm -f .env.bak
     
     echo "  ✅ .env 文件已创建并生成随机密钥"

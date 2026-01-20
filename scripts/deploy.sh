@@ -277,6 +277,52 @@ interactive_setup() {
         ssl_email=""
     fi
     
+    # Web Push VAPID 配置
+    print_header "Web Push (PWA) 通知配置（可选）"
+    
+    read -p "是否启用 Web Push 通知？[y/N] " -r enable_vapid
+    if [[ $enable_vapid =~ ^[Yy]$ ]]; then
+        log_info "需要生成 VAPID 密钥对"
+        
+        # 优先使用容器环境（Docker/Podman）生成 VAPID 密钥，如果不可用再退回到本地 npx
+        if command -v docker >/dev/null 2>&1; then
+            log_info "使用 Docker 临时容器生成 VAPID 密钥..."
+            vapid_keys=$(docker run --rm -v "$ROOT_DIR":/work -w /work node:18-bullseye-slim npx -y web-push generate-vapid-keys --json 2>/dev/null || echo "")
+        elif command -v podman >/dev/null 2>&1; then
+            log_info "使用 Podman 临时容器生成 VAPID 密钥..."
+            vapid_keys=$(podman run --rm -v "$ROOT_DIR":/work -w /work docker.io/node:18-bullseye-slim npx -y web-push generate-vapid-keys --json 2>/dev/null || echo "")
+        elif command -v npx >/dev/null 2>&1; then
+            log_info "使用本地 npx 生成 VAPID 密钥..."
+            vapid_keys=$(npx -y web-push generate-vapid-keys --json 2>/dev/null || echo "")
+        else
+            vapid_keys=""
+        fi
+
+        if [ -n "$vapid_keys" ]; then
+            vapid_public_key=$(echo "$vapid_keys" | grep -o '"publicKey":"[^"]*"' | cut -d'"' -f4)
+            vapid_private_key=$(echo "$vapid_keys" | grep -o '"privateKey":"[^"]*"' | cut -d'"' -f4)
+            
+            if [ -n "$vapid_public_key" ] && [ -n "$vapid_private_key" ]; then
+                log_success "VAPID 密钥已自动生成"
+            else
+                log_warn "自动生成失败，请手动输入"
+                read -p "VAPID 公钥: " vapid_public_key
+                read -p "VAPID 私钥: " vapid_private_key
+            fi
+        else
+            log_warn "未检测到可用的生成工具（Docker/Podman/npx），请手动输入 VAPID 密钥"
+            log_info "生成方法示例: npx web-push generate-vapid-keys 或 使用脚本 ./scripts/generate-vapid-keys.sh"
+            read -p "VAPID 公钥: " vapid_public_key
+            read -p "VAPID 私钥: " vapid_private_key
+        fi
+        
+        log_success "Web Push 配置完成"
+    else
+        vapid_public_key=""
+        vapid_private_key=""
+        log_info "跳过 Web Push 配置（可稍后手动添加到 .env.production）"
+    fi
+    
     # 生成 .env.production
     cat > "$ENV_FILE" <<EOF
 # Zinnia 生产环境配置
@@ -335,6 +381,10 @@ SSL_EMAIL=${ssl_email}
 
 # ==================== 备份配置 ====================
 BACKUP_RETENTION_DAYS=7
+
+# ==================== Web Push (PWA) 通知配置 ====================
+VAPID_PUBLIC_KEY=${vapid_public_key}
+VAPID_PRIVATE_KEY=${vapid_private_key}
 EOF
     
     chmod 600 "$ENV_FILE"
@@ -356,6 +406,10 @@ EOF
     echo "reCAPTCHA: ${recaptcha_enabled}"
     if [ "$recaptcha_enabled" = "true" ]; then
         echo "  └─ 站点密钥: ${recaptcha_site_key}"
+    fi
+    echo "Web Push: $([ -n "$vapid_public_key" ] && echo "已启用" || echo "未启用")"
+    if [ -n "$vapid_public_key" ]; then
+        echo "  └─ 公钥: ${vapid_public_key:0:20}..."
     fi
     echo "密钥目录: $SECRETS_DIR"
     echo ""

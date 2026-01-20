@@ -120,6 +120,18 @@ pub fn configure(
                         .route("/events/{id}/resolve", web::post().to(handlers::resolve_alert))
                         .route("/events/{id}/status", web::put().to(handlers::update_alert_status))
                         .route("/devices/{device_id}/count", web::get().to(handlers::count_active_alerts)),
+                )
+                // 通知偏好路由（需要认证）
+                .service(
+                    web::scope("/notifications")
+                        .wrap(jwt_auth.clone())
+                        .route("/preferences", web::get().to(handlers::get_notification_preference))
+                        .route("/preferences", web::put().to(handlers::update_notification_preference))
+                        // Web Push 订阅管理
+                        .route("/web-push/vapid-key", web::get().to(handlers::get_vapid_public_key))
+                        .route("/web-push/subscribe", web::post().to(handlers::subscribe_web_push))
+                        .route("/web-push/subscriptions", web::get().to(handlers::list_web_push_subscriptions))
+                        .route("/web-push/subscriptions/{id}", web::delete().to(handlers::unsubscribe_web_push)),
                 ),
         );
 }

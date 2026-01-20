@@ -7,6 +7,7 @@ mod audit;
 mod common;
 mod user;
 mod device_token;
+mod notification;
 
 pub use device::*;
 pub use battery::*;
@@ -15,3 +16,4 @@ pub use audit::*;
 pub use common::*;
 pub use user::*;
 pub use device_token::*;
+pub use notification::*;

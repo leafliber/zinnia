@@ -3,3 +3,4 @@
 mod token_tests;
 mod model_tests;
 mod jwt_tests;
+mod notification_tests;
