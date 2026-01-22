@@ -23,6 +23,8 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(60);
 /// 认证超时时间（秒）
 const AUTH_TIMEOUT_SECS: u64 = 30;
+/// 最大订阅设备数量
+const MAX_SUBSCRIBED_DEVICES: usize = 100;
 
 /// WebSocket 连接状态
 #[derive(Debug, Clone, PartialEq)]
@@ -379,11 +381,26 @@ impl WsSession {
         };
         
         ctx.spawn(actix::fut::wrap_future(fut).map(|accessible_devices: Vec<Uuid>, act: &mut Self, ctx| {
+            // 检查订阅数量限制
+            let new_subscriptions = accessible_devices.len();
+            let current_subscriptions = act.subscribed_devices.len();
+
+            if current_subscriptions + new_subscriptions > MAX_SUBSCRIBED_DEVICES {
+                act.send_message(ctx, ServerMessage::SubscribeResult(SubscribeResultMessage {
+                    success: false,
+                    subscribed_devices: vec![],
+                    error: Some(format!("订阅设备数量超过限制 (最大 {})", MAX_SUBSCRIBED_DEVICES)),
+                }));
+                return;
+            }
+
             // 添加到订阅列表
             for device_id in &accessible_devices {
                 act.subscribed_devices.insert(*device_id);
             }
-            
+
+            info!("用户 {} 订阅了 {} 个设备", act.user_id.unwrap_or_default(), new_subscriptions);
+
             act.send_message(ctx, ServerMessage::SubscribeResult(SubscribeResultMessage {
                 success: true,
                 subscribed_devices: accessible_devices,

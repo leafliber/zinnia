@@ -34,31 +34,57 @@ async fn main() -> std::io::Result<()> {
     info!("🌱 Zinnia 服务启动中...");
 
     // 加载配置
-    let settings = Settings::load().expect("配置加载失败");
+    let settings = match Settings::load() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("❌ 配置加载失败: {}", e);
+            std::process::exit(1);
+        }
+    };
     info!("✅ 配置加载完成");
 
     // 初始化密钥
-    Secrets::init().expect("密钥初始化失败");
+    match Secrets::init() {
+        Ok(_) => {},
+        Err(e) => {
+            eprintln!("❌ 密钥初始化失败: {}", e);
+            std::process::exit(1);
+        }
+    };
     info!("✅ 密钥初始化完成");
 
     // 连接数据库
     let pg_pool = Arc::new(
-        PostgresPool::new(&settings)
-            .await
-            .expect("数据库连接失败"),
+        match PostgresPool::new(&settings).await {
+            Ok(p) => p,
+            Err(e) => {
+                eprintln!("❌ 数据库连接失败: {}", e);
+                std::process::exit(1);
+            }
+        },
     );
     info!("✅ 数据库连接成功");
 
     // 连接 Redis
     let redis_pool = Arc::new(
-        RedisPool::new(&settings)
-            .await
-            .expect("Redis 连接失败"),
+        match RedisPool::new(&settings).await {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("❌ Redis 连接失败: {}", e);
+                std::process::exit(1);
+            }
+        },
     );
     info!("✅ Redis 连接成功");
 
     // 初始化 JWT 管理器
-    let jwt_manager = Arc::new(JwtManager::new(&settings).expect("JWT 初始化失败"));
+    let jwt_manager = Arc::new(match JwtManager::new(&settings) {
+        Ok(j) => j,
+        Err(e) => {
+            eprintln!("❌ JWT 初始化失败: {}", e);
+            std::process::exit(1);
+        }
+    });
 
     // 初始化仓库
     let device_repo = Arc::new(DeviceRepository::new((*pg_pool).clone()));
@@ -91,8 +117,13 @@ async fn main() -> std::io::Result<()> {
 
     // 初始化注册安全服务
     let email_service = Arc::new(
-        EmailService::new(&settings, redis_pool.clone())
-            .expect("邮件服务初始化失败")
+        match EmailService::new(&settings, redis_pool.clone()) {
+            Ok(e) => e,
+            Err(err) => {
+                eprintln!("❌ 邮件服务初始化失败: {}", err);
+                std::process::exit(1);
+            }
+        }
     );
     let verification_service = Arc::new(VerificationService::new(
         redis_pool.clone(),

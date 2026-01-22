@@ -535,6 +535,163 @@ DELETE /api/v1/users/{user_id}
 
 ---
 
+## Webhook 配置管理
+
+> **注意**: Webhook 配置通过用户通知偏好设置接口管理，以下是相关配置说明
+
+### 配置 Webhook 通知
+
+在用户通知偏好设置中配置 Webhook：
+
+```
+PUT /api/v1/users/me/notifications/preferences
+```
+
+**请求体**:
+```json
+{
+  "webhook_config": {
+    "enabled": true,
+    "url": "https://your-domain.com/webhook/zinnia",
+    "secret": "your-webhook-secret-key",
+    "headers": {
+      "X-Custom-Header": "custom-value"
+    }
+  },
+  "notify_info": true,
+  "notify_warning": true,
+  "notify_critical": true
+}
+```
+
+### Webhook 配置字段说明
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `enabled` | boolean | ✅ | 是否启用 Webhook 通知 |
+| `url` | string | ✅ | Webhook 接收 URL (HTTPS) |
+| `secret` | string | ❌ | 签名密钥 (用于 HMAC-SHA256) |
+| `headers` | object | ❌ | 自定义请求头 (键值对) |
+
+### 获取当前 Webhook 配置
+
+```
+GET /api/v1/users/me/notifications/preferences
+```
+
+**成功响应** (200 OK):
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "webhook_enabled": true,
+    "webhook_url": "https://your-domain.com/webhook/zinnia",
+    "webhook_subscriptions_count": 0
+  }
+}
+```
+
+### Webhook 最佳实践
+
+1. **使用 HTTPS**: 确保 Webhook URL 使用 HTTPS 协议
+2. **验证签名**: 始终验证 `X-Zinnia-Signature` 头
+3. **快速响应**: 在 10 秒内返回 200 OK
+4. **幂等处理**: 处理重复的 Webhook 事件
+5. **错误重试**: 支持指数退避重试机制
+6. **日志记录**: 记录所有 Webhook 请求和响应
+
+### Webhook 安全建议
+
+- **密钥管理**: 定期轮换 `secret` 密钥
+- **IP 白名单**: 限制来源 IP (可选)
+- **速率限制**: 实现适当的速率限制
+- **超时控制**: 设置合理的超时时间
+- **错误监控**: 监控 Webhook 失败率
+
+### 测试 Webhook
+
+可以使用以下 curl 命令测试 Webhook 端点：
+
+```bash
+curl -X POST https://your-domain.com/webhook/zinnia \
+  -H "Content-Type: application/json" \
+  -H "X-Zinnia-Event: test" \
+  -d '{"test": "data"}'
+```
+
+### Webhook 事件类型
+
+当前支持的事件类型：
+- `alert_triggered` - 预警触发
+- `device_status_changed` - 设备状态变更
+- `battery_level_updated` - 电量更新 (可选)
+
+### 响应处理示例
+
+**Node.js Express 示例**:
+```javascript
+app.post('/webhook/zinnia', async (req, res) => {
+  // 验证签名
+  const signature = req.headers['x-zinnia-signature'];
+  if (!verifySignature(req.body, signature, WEBHOOK_SECRET)) {
+    return res.status(401).send('Invalid signature');
+  }
+
+  // 处理事件
+  const { event_type, data } = req.body;
+
+  switch (event_type) {
+    case 'alert_triggered':
+      await handleAlert(data);
+      break;
+    default:
+      console.log('Unknown event type:', event_type);
+  }
+
+  // 快速响应
+  res.status(200).send('OK');
+});
+```
+
+**Python Flask 示例**:
+```python
+from flask import Flask, request, jsonify
+import hmac
+import hashlib
+
+app = Flask(__name__)
+WEBHOOK_SECRET = 'your-secret-key'
+
+@app.route('/webhook/zinnia', methods=['POST'])
+def webhook():
+    # 验证签名
+    signature = request.headers.get('X-Zinnia-Signature', '')
+    payload = request.get_data()
+
+    expected_signature = hmac.new(
+        WEBHOOK_SECRET.encode(),
+        payload,
+        hashlib.sha256
+    ).hexdigest()
+
+    if not hmac.compare_digest(f'sha256={expected_signature}', signature):
+        return jsonify({'error': 'Invalid signature'}), 401
+
+    # 处理事件
+    data = request.json
+    event_type = data.get('event_type')
+
+    if event_type == 'alert_triggered':
+        process_alert(data['data'])
+
+    return jsonify({'status': 'success'}), 200
+```
+
+---
+
+---
+
 ## 设备接口
 
 ### 创建设备
@@ -1754,6 +1911,89 @@ GET /health/live
 
 ---
 
+## Webhook 通知配置
+
+### Webhook 通知负载格式
+
+当预警触发时，系统会向配置的 Webhook URL 发送 HTTP POST 请求，负载格式如下：
+
+```json
+{
+  "event_id": "990e8400-e29b-41d4-a716-446655440000",
+  "event_type": "alert_triggered",
+  "timestamp": "2026-01-12T10:30:00.000Z",
+  "data": {
+    "alert_event": {
+      "id": "990e8400-e29b-41d4-a716-446655440000",
+      "device_id": "660e8400-e29b-41d4-a716-446655440000",
+      "rule_id": "880e8400-e29b-41d4-a716-446655440000",
+      "alert_type": "low_battery",
+      "level": "warning",
+      "status": "active",
+      "message": "设备电量低于阈值",
+      "value": 18.0,
+      "threshold": 20.0,
+      "triggered_at": "2026-01-12T10:30:00Z"
+    },
+    "device": {
+      "id": "660e8400-e29b-41d4-a716-446655440000",
+      "name": "客厅传感器",
+      "device_type": "battery_sensor",
+      "status": "online",
+      "owner_id": "550e8400-e29b-41d4-a716-446655440000"
+    },
+    "user": {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "email": "user@example.com",
+      "username": "johndoe"
+    }
+  }
+}
+```
+
+### Webhook 请求头
+
+```
+Content-Type: application/json
+X-Zinnia-Event: alert_triggered
+X-Zinnia-Signature: sha256=... (如果配置了密钥)
+X-Zinnia-Timestamp: 2026-01-12T10:30:00.000Z
+```
+
+### 签名验证
+
+如果配置了 `secret`，系统会使用 HMAC-SHA256 生成签名：
+
+```javascript
+const crypto = require('crypto');
+
+function verifySignature(payload, signature, secret) {
+  const expectedSignature = crypto
+    .createHmac('sha256', secret)
+    .update(JSON.stringify(payload))
+    .digest('hex');
+
+  return `sha256=${expectedSignature}` === signature;
+}
+```
+
+### 响应要求
+
+Webhook 服务应在 10 秒内响应，支持以下状态码：
+
+- **200 OK**: 成功接收，系统将标记通知为已发送
+- **202 Accepted**: 已接受处理，系统将记录但不重试
+- **4xx Client Error**: 客户端错误，系统将重试（最多 3 次）
+- **5xx Server Error**: 服务器错误，系统将重试（最多 3 次，指数退避）
+
+### 重试机制
+
+- **重试次数**: 最多 3 次
+- **重试间隔**: 1秒、3秒、9秒（指数退避）
+- **超时时间**: 每次请求 10 秒超时
+
+---
+
 ## 错误码参考
 
 ### HTTP 状态码
@@ -1767,7 +2007,7 @@ GET /health/live
 | 401 | Unauthorized | 未认证或令牌无效 |
 | 403 | Forbidden | 无权限访问 |
 | 404 | Not Found | 资源不存在 |
-| 409 | Conflict | 资源冲突（如邮箱已存在） |
+| 409 | Conflict | 资源冲突（如邮箱已存在）|
 | 429 | Too Many Requests | 请求频率过高 |
 | 500 | Internal Server Error | 服务器内部错误 |
 

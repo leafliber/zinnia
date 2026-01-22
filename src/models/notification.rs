@@ -240,13 +240,13 @@ impl NotificationPreferenceResponse {
             user_id: pref.user_id,
             enabled: pref.enabled,
             
-            email_enabled: email_config.as_ref().map_or(false, |c| c.enabled),
+            email_enabled: email_config.as_ref().is_some_and(|c| c.enabled),
             email_address: email_config.map(|c| c.email),
-            
-            webhook_enabled: webhook_config.as_ref().map_or(false, |c| c.enabled),
+
+            webhook_enabled: webhook_config.as_ref().is_some_and(|c| c.enabled),
             webhook_url: webhook_config.map(|c| c.url),
-            
-            web_push_enabled: web_push_config.as_ref().map_or(false, |c| c.enabled),
+
+            web_push_enabled: web_push_config.as_ref().is_some_and(|c| c.enabled),
             web_push_subscriptions_count: 0,  // 需要单独查询
             
             notify_info: pref.notify_info,

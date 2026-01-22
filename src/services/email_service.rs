@@ -213,18 +213,26 @@ impl EmailService {
         tracing::info!(to = %to_email, "欢迎邮件已发送");
         Ok(())
     }
+}
 
+/// 发送预警通知邮件的参数
+#[derive(Debug, Clone, Copy)]
+pub struct AlertNotificationParams<'a> {
+    pub to_email: &'a str,
+    pub alert_type: &'a str,
+    pub level: &'a str,
+    pub message: &'a str,
+    pub device_name: &'a str,
+    pub value: f64,
+    pub threshold: f64,
+    pub triggered_at: &'a str,
+}
+
+impl EmailService {
     /// 发送预警通知邮件
     pub async fn send_alert_notification(
         &self,
-        to_email: &str,
-        alert_type: &str,
-        level: &str,
-        message: &str,
-        device_name: &str,
-        value: f64,
-        threshold: f64,
-        triggered_at: &str,
+        params: AlertNotificationParams<'_>,
     ) -> Result<(), AppError> {
         let mailer = self.mailer.as_ref()
             .ok_or_else(|| AppError::ConfigError("邮件服务未启用".to_string()))?;
@@ -232,14 +240,14 @@ impl EmailService {
         let from = format!("{} <{}>", self.settings.from_name, self.settings.from_email);
 
         // 根据级别确定邮件主题前缀
-        let level_prefix = match level {
+        let level_prefix = match params.level {
             "critical" => "🔴 严重预警",
             "warning" => "🟡 警告",
             "info" => "ℹ️ 信息",
             _ => "预警通知",
         };
 
-        let subject = format!("【Zinnia】{} - {}", level_prefix, alert_type);
+        let subject = format!("【Zinnia】{} - {}", level_prefix, params.alert_type);
 
         // 构建详细的邮件正文
         let body = format!(
@@ -265,19 +273,19 @@ impl EmailService {
 此邮件由系统自动发送，请勿直接回复。
 
 ——Zinnia 团队"#,
-            device_name,
-            alert_type,
-            level,
-            message,
-            value,
-            threshold,
-            triggered_at,
-            get_alert_suggestion(alert_type, level)
+            params.device_name,
+            params.alert_type,
+            params.level,
+            params.message,
+            params.value,
+            params.threshold,
+            params.triggered_at,
+            get_alert_suggestion(params.alert_type, params.level)
         );
 
         let email = Message::builder()
             .from(from.parse().map_err(|e| AppError::ConfigError(format!("发件人地址无效: {}", e)))?)
-            .to(to_email.parse().map_err(|_| AppError::ValidationError("收件人邮箱格式无效".to_string()))?)
+            .to(params.to_email.parse().map_err(|_| AppError::ValidationError("收件人邮箱格式无效".to_string()))?)
             .subject(subject)
             .body(body)
             .map_err(|e| AppError::InternalError(format!("邮件构建失败: {}", e)))?;
@@ -286,11 +294,11 @@ impl EmailService {
             .send(email)
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, to = %to_email, "预警邮件发送失败");
+                tracing::error!(error = %e, to = %params.to_email, "预警邮件发送失败");
                 AppError::InternalError("邮件发送失败，请稍后重试".to_string())
             })?;
 
-        tracing::info!(to = %to_email, alert_type = %alert_type, level = %level, "预警邮件已发送");
+        tracing::info!(to = %params.to_email, alert_type = %params.alert_type, level = %params.level, "预警邮件已发送");
         Ok(())
     }
 }

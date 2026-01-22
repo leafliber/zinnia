@@ -263,17 +263,18 @@ impl NotificationService {
             .await?;
 
         // 发送邮件
+        let params = crate::services::email_service::AlertNotificationParams {
+            to_email: &email_config.email,
+            alert_type: &format!("{:?}", alert_event.alert_type),
+            level: &format!("{:?}", alert_event.level),
+            message: &alert_event.message,
+            device_name,
+            value: alert_event.value,
+            threshold: alert_event.threshold,
+            triggered_at: &alert_event.triggered_at.format("%Y-%m-%d %H:%M:%S UTC").to_string(),
+        };
         let result = self.email_service
-            .send_alert_notification(
-                &email_config.email,
-                &format!("{:?}", alert_event.alert_type),
-                &format!("{:?}", alert_event.level),
-                &alert_event.message,
-                device_name,
-                alert_event.value,
-                alert_event.threshold,
-                &alert_event.triggered_at.format("%Y-%m-%d %H:%M:%S UTC").to_string(),
-            )
+            .send_alert_notification(params)
             .await;
 
         // 更新发送状态
@@ -531,7 +532,7 @@ impl NotificationService {
         preference.webhook_config
             .as_ref()
             .and_then(|v| serde_json::from_value::<WebhookNotificationConfig>(v.clone()).ok())
-            .map_or(false, |c| c.enabled)
+            .is_some_and(|c| c.enabled)
     }
 
     /// 检查Web Push是否启用
@@ -539,6 +540,6 @@ impl NotificationService {
         preference.web_push_config
             .as_ref()
             .and_then(|v| serde_json::from_value::<WebPushNotificationConfig>(v.clone()).ok())
-            .map_or(false, |c| c.enabled)
+            .is_some_and(|c| c.enabled)
     }
 }
