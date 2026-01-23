@@ -85,15 +85,51 @@ Zinnia 采用**双令牌架构**：API Key（设备长期凭据）+ JWT（短期
 
 ### 用户认证（JWT）
 
-用户通过登录获取 JWT 令牌，在请求头中携带：
+用户通过登录获取 JWT 令牌，支持两种传递方式：
+
+#### 方式 1：Authorization Header（传统方式）
+
+在请求头中携带：
 
 ```
 Authorization: Bearer <access_token>
 ```
 
+#### 方式 2：HttpOnly Cookie（推荐）
+
+后端支持通过 httpOnly cookie 传递令牌。登录成功后，`access_token` 和 `refresh_token` 会自动设置到 cookie 中，后续请求会自动携带。
+
+**Cookie 配置**：
+- `access_token`: 有效期 15 分钟，httpOnly、SameSite 保护
+- `refresh_token`: 有效期 7 天，httpOnly、SameSite 保护
+
+**使用方式**：
+```javascript
+// 登录时设置 credentials: 'include'
+const response = await fetch('/api/v1/users/login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  credentials: 'include', // 携带/接收 cookie
+  body: JSON.stringify({ login: 'email@example.com', password: 'xxx' })
+});
+
+// 后续请求自动携带 cookie
+const devices = await fetch('/api/v1/devices', { credentials: 'include' });
+```
+
+**优势**：
+- ✅ httpOnly 防止 XSS 攻击（JavaScript 无法读取）
+- ✅ SameSite 防止 CSRF 攻击
+- ✅ 无需客户端手动管理 token 存储
+- ✅ 自动过期处理
+
 **令牌类型**：
 - `access_token`: 访问令牌，有效期 15 分钟
 - `refresh_token`: 刷新令牌，有效期 7 天
+
+**认证优先级**: Authorization header > Cookie
+
+> 💡 **建议**: 前端应用推荐使用 HttpOnly Cookie 方式，更安全且简化开发。
 
 ### 设备认证（API Key 与 JWT）
 
@@ -2041,7 +2077,70 @@ Webhook 服务应在 10 秒内响应，支持以下状态码：
 
 ## 使用示例
 
-### 完整登录流程
+### 方式 1：使用 HttpOnly Cookie（推荐）
+
+```javascript
+// 1. 用户登录（cookie 自动设置）
+const loginResponse = await fetch('/api/v1/users/login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  credentials: 'include', // 必须设置！
+  body: JSON.stringify({
+    login: 'user@example.com',
+    password: 'SecurePass123!'
+  })
+});
+const { data } = await loginResponse.json();
+// access_token 和 refresh_token 已自动设置到 httpOnly cookie
+
+// 2. 获取设备列表（cookie 自动携带）
+const devicesResponse = await fetch('/api/v1/devices', {
+  credentials: 'include' // 必须设置！
+});
+const devices = await devicesResponse.json();
+
+// 3. 获取设备电量
+const batteryResponse = await fetch(`/api/v1/battery/latest/${deviceId}`, {
+  credentials: 'include' // 必须设置！
+});
+
+// 4. 刷新令牌（refresh_token 在 cookie 中）
+const refreshResponse = await fetch('/api/v1/users/refresh', {
+  method: 'POST',
+  credentials: 'include', // cookie 自动携带 refresh_token
+  headers: { 'Content-Type': 'application/json' }
+});
+
+// 5. 登出（cookie 自动清除）
+const logoutResponse = await fetch('/api/v1/users/logout', {
+  method: 'POST',
+  credentials: 'include'
+});
+```
+
+**Axios 配置示例**：
+
+```javascript
+import axios from 'axios';
+
+// 创建 axios 实例
+const api = axios.create({
+  baseURL: 'http://localhost:8080/api/v1',
+  withCredentials: true  // 关键配置：携带 cookie
+});
+
+// 登录
+const login = async (email, password) =>
+  api.post('/users/login', { login: email, password });
+
+// 获取设备
+const getDevices = () => api.get('/devices');
+
+// 刷新令牌
+const refreshToken = () => api.post('/users/refresh');
+```
+
+### 方式 2：使用 Authorization Header
 
 ```javascript
 // 1. 用户登录
