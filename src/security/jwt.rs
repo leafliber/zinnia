@@ -168,6 +168,7 @@ impl JwtManager {
 
 /// 令牌对
 #[derive(Debug, Serialize)]
+#[derive(Clone)]
 pub struct TokenPair {
     pub access_token: String,
     pub refresh_token: String,

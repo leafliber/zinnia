@@ -9,6 +9,7 @@ use crate::models::{
 };
 use crate::repositories::DeviceRepository;
 use crate::services::{UserService, AlertService};
+use crate::utils::{clear_auth_cookies, extract_refresh_token, set_auth_cookies};
 use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -71,6 +72,7 @@ pub async fn register(
 }
 
 /// 用户登录
+/// 同时支持返回 JSON 和设置 httponly cookie
 pub async fn login(
     req: HttpRequest,
     user_service: web::Data<Arc<UserService>>,
@@ -90,34 +92,64 @@ pub async fn login(
         .login(body.into_inner(), ip_address.as_deref())
         .await?;
 
-    Ok(HttpResponse::Ok().json(ApiResponse::success(response)))
+    // 设置 httpOnly cookie
+    let res = HttpResponse::Ok().json(ApiResponse::success(response.clone()));
+    let res = set_auth_cookies(res, &response.access_token, &response.refresh_token);
+
+    Ok(res)
 }
 
 /// 刷新用户令牌
+/// 支持从请求体或 cookie 中获取 refresh token
 pub async fn user_refresh_token(
     req: HttpRequest,
     user_service: web::Data<Arc<UserService>>,
-    body: web::Json<RefreshTokenRequest>,
+    body: Option<web::Json<RefreshTokenRequest>>, // 可选，如果没有则从 cookie 获取
 ) -> Result<HttpResponse, AppError> {
     let ip_address = req
         .connection_info()
         .realip_remote_addr()
         .map(|s| s.to_string());
 
+    // 优先使用请求体中的 refresh_token，如果未提供则从 cookie 获取
+    let refresh_token = match body {
+        Some(b) => b.refresh_token.clone(),
+        None => extract_refresh_token(&req)
+            .ok_or_else(|| AppError::ValidationError("缺少刷新令牌".to_string()))?,
+    };
+
     let response = user_service
-        .refresh_token(&body.refresh_token, ip_address.as_deref())
+        .refresh_token(&refresh_token, ip_address.as_deref())
         .await?;
 
-    Ok(HttpResponse::Ok().json(ApiResponse::success(response)))
+    // 更新 httpOnly cookie
+    let res = HttpResponse::Ok().json(ApiResponse::success(response.clone()));
+    let res = set_auth_cookies(res, &response.access_token, &response.refresh_token);
+
+    Ok(res)
 }
 
 /// 用户登出
+/// 支持从请求体或 cookie 中获取 refresh token
 pub async fn user_logout(
     user_service: web::Data<Arc<UserService>>,
-    body: web::Json<RefreshTokenRequest>,
+    req: HttpRequest,
+    body: Option<web::Json<RefreshTokenRequest>>, // 可选
 ) -> Result<HttpResponse, AppError> {
-    user_service.logout(&body.refresh_token).await?;
-    Ok(HttpResponse::Ok().json(ApiResponse::<()>::success_message("已登出")))
+    // 优先使用请求体中的 refresh_token，如果未提供则从 cookie 获取
+    let refresh_token = match body {
+        Some(b) => b.refresh_token.clone(),
+        None => extract_refresh_token(&req)
+            .ok_or_else(|| AppError::ValidationError("缺少刷新令牌".to_string()))?,
+    };
+
+    user_service.logout(&refresh_token).await?;
+
+    // 清除 httpOnly cookie
+    let res = HttpResponse::Ok().json(ApiResponse::<()>::success_message("已登出"));
+    let res = clear_auth_cookies(res);
+
+    Ok(res)
 }
 
 // ========== 需要认证的接口 ==========
@@ -167,11 +199,15 @@ pub async fn logout_all(
 ) -> Result<HttpResponse, AppError> {
     let user_id = extract_user_id(&req)?;
     let count = user_service.logout_all(user_id).await?;
-    
-    Ok(HttpResponse::Ok().json(ApiResponse::success(serde_json::json!({
+
+    // 清除 httpOnly cookie
+    let res = HttpResponse::Ok().json(ApiResponse::success(serde_json::json!({
         "message": "已登出所有设备",
         "sessions_revoked": count
-    }))))
+    })));
+    let res = clear_auth_cookies(res);
+
+    Ok(res)
 }
 
 // ========== 管理员接口 ==========

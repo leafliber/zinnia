@@ -194,6 +194,9 @@ async fn main() -> std::io::Result<()> {
             })
             .allowed_methods(vec!["GET", "POST", "PUT", "PATCH", "DELETE"])
             .allowed_headers(vec!["Authorization", "Content-Type", "X-API-Key", "X-Request-ID"])
+            .expose_headers(vec!["Set-Cookie"])
+            .allow_any_header()
+            .supports_credentials() // 允许携带凭证（cookie）
             .max_age(3600);
 
         // 创建认证中间件实例

@@ -3,6 +3,7 @@
 use crate::db::RedisPool;
 use crate::errors::AppError;
 use crate::security::{JwtManager, mask_token};
+
 use actix_web::{
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
     http::header::AUTHORIZATION,
@@ -109,21 +110,30 @@ where
         let redis_pool = self.redis_pool.clone();
 
         Box::pin(async move {
-            // 提取 Authorization 头
-            let auth_header = req
-                .headers()
-                .get(AUTHORIZATION)
-                .and_then(|h| h.to_str().ok());
-
-            let token = match auth_header {
-                Some(header) if header.starts_with("Bearer ") => &header[7..],
-                _ => {
+            // 从多个来源提取 token：优先 header，其次 cookie
+            let token = if let Some(auth_header) = req.headers().get(AUTHORIZATION).and_then(|h| h.to_str().ok()) {
+                if let Some(t) = auth_header.strip_prefix("Bearer ") {
+                    t.to_owned()
+                } else {
                     return Err(AppError::Unauthorized("缺少认证令牌".to_string()).into());
                 }
+            } else if let Some(cookie_header) = req.headers().get("Cookie").and_then(|h| h.to_str().ok()) {
+                // 手动解析 cookie（避免类型转换问题）
+                let mut token_result = None;
+                for pair in cookie_header.split(';') {
+                    let pair = pair.trim();
+                    if pair.starts_with("access_token=") {
+                        token_result = Some(pair[(12)..].to_string());
+                        break;
+                    }
+                }
+                token_result.ok_or_else(|| AppError::Unauthorized("缺少认证令牌".to_string()))?
+            } else {
+                return Err(AppError::Unauthorized("缺少认证令牌".to_string()).into());
             };
 
             // 验证 JWT
-            let claims = jwt_manager.validate_access_token(token)?;
+            let claims = jwt_manager.validate_access_token(&token)?;
 
             // 检查令牌是否在黑名单中
             let blacklist_key = format!("token:blacklist:{}", claims.jti);
@@ -322,35 +332,50 @@ where
         let device_service = self.device_service.clone();
 
         Box::pin(async move {
+            // 提取 token：优先 header，其次 cookie
+            let jwt_token = if let Some(auth_header) = req.headers().get(AUTHORIZATION).and_then(|h| h.to_str().ok()) {
+                auth_header.strip_prefix("Bearer ").map(|t| t.to_owned())
+            } else if let Some(cookie_header) = req.headers().get("Cookie").and_then(|h| h.to_str().ok()) {
+                // 手动解析 cookie
+                let mut token_result = None;
+                for pair in cookie_header.split(';') {
+                    let pair = pair.trim();
+                    if pair.starts_with("access_token=") {
+                        token_result = Some(pair[(12)..].to_string());
+                        break;
+                    }
+                }
+                token_result
+            } else {
+                None
+            };
+
             // 尝试 JWT 认证
-            if let Some(auth_header) = req.headers().get(AUTHORIZATION).and_then(|h| h.to_str().ok()) {
-                if let Some(token) = auth_header.strip_prefix("Bearer ") {
-                    
-                    // 验证 JWT
-                    if let Ok(claims) = jwt_manager.validate_access_token(token) {
-                        // 检查令牌是否在黑名单中
-                        let blacklist_key = format!("token:blacklist:{}", claims.jti);
-                        let is_blacklisted: Option<String> = redis_pool.get(&blacklist_key).await?;
-                        
-                        if is_blacklisted.is_none() {
-                            // 解析用户 ID
-                            let user_id = if claims.device_id.is_none() {
-                                Uuid::parse_str(&claims.sub).ok()
-                            } else {
-                                None
-                            };
-                            
-                            // JWT 认证成功
-                            let auth_info = AuthInfo {
-                                actor_id: claims.sub.clone(),
-                                user_id,
-                                device_id: claims.device_id,
-                                role: claims.role.clone(),
-                                auth_type: AuthType::Jwt,
-                            };
-                            req.extensions_mut().insert(auth_info);
-                            return service.call(req).await;
-                        }
+            if let Some(token) = jwt_token {
+                // 验证 JWT
+                if let Ok(claims) = jwt_manager.validate_access_token(&token) {
+                    // 检查令牌是否在黑名单中
+                    let blacklist_key = format!("token:blacklist:{}", claims.jti);
+                    let is_blacklisted: Option<String> = redis_pool.get(&blacklist_key).await?;
+
+                    if is_blacklisted.is_none() {
+                        // 解析用户 ID
+                        let user_id = if claims.device_id.is_none() {
+                            Uuid::parse_str(&claims.sub).ok()
+                        } else {
+                            None
+                        };
+
+                        // JWT 认证成功
+                        let auth_info = AuthInfo {
+                            actor_id: claims.sub.clone(),
+                            user_id,
+                            device_id: claims.device_id,
+                            role: claims.role.clone(),
+                            auth_type: AuthType::Jwt,
+                        };
+                        req.extensions_mut().insert(auth_info);
+                        return service.call(req).await;
                     }
                 }
             }
