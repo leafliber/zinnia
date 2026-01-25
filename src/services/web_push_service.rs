@@ -1,16 +1,16 @@
 //! Web Push 推送服务
-//! 
+//!
 //! 提供 PWA Web Push 通知功能
 
 use crate::config::Settings;
 use crate::errors::AppError;
-use crate::models::{WebPushSubscription};
+use crate::models::WebPushSubscription;
 use crate::repositories::NotificationRepository;
 use base64::{engine::general_purpose, Engine};
 use secrecy::ExposeSecret;
-use web_push::URL_SAFE_NO_PAD;
 use std::sync::Arc;
 use uuid::Uuid;
+use web_push::URL_SAFE_NO_PAD;
 use web_push::{
     ContentEncoding, SubscriptionInfo, VapidSignatureBuilder, WebPushClient, WebPushMessageBuilder,
 };
@@ -26,11 +26,14 @@ pub struct WebPushService {
 
 impl WebPushService {
     /// 创建 Web Push 服务实例
-    pub fn new(settings: &Settings, notification_repo: Arc<NotificationRepository>) -> Result<Self, AppError> {
+    pub fn new(
+        settings: &Settings,
+        notification_repo: Arc<NotificationRepository>,
+    ) -> Result<Self, AppError> {
         // 获取 VAPID 密钥
         let vapid_private_key_base64 = Settings::vapid_private_key()
             .ok_or_else(|| AppError::ConfigError("VAPID_PRIVATE_KEY 未设置".to_string()))?;
-        
+
         let vapid_public_key = Settings::vapid_public_key()
             .ok_or_else(|| AppError::ConfigError("VAPID_PUBLIC_KEY 未设置".to_string()))?;
 
@@ -91,18 +94,16 @@ impl WebPushService {
 
         // 构建签名（将私钥转换为base64字符串）
         let vapid_key_base64 = general_purpose::URL_SAFE_NO_PAD.encode(&self.vapid_private_key);
-        
+
         // 先创建不带订阅信息的 builder，然后添加订阅信息
-        let partial_builder = VapidSignatureBuilder::from_base64_no_sub(
-            &vapid_key_base64,
-            URL_SAFE_NO_PAD,
-        )
-        .map_err(|e| AppError::InternalError(format!("创建 VAPID builder 失败: {}", e)))?;
-        
+        let partial_builder =
+            VapidSignatureBuilder::from_base64_no_sub(&vapid_key_base64, URL_SAFE_NO_PAD)
+                .map_err(|e| AppError::InternalError(format!("创建 VAPID builder 失败: {}", e)))?;
+
         let mut sig_builder = partial_builder.add_sub_info(&subscription_info);
 
         sig_builder.add_claim("sub", self.subject.clone());
-        
+
         let signature = sig_builder
             .build()
             .map_err(|e| AppError::InternalError(format!("构建 VAPID 签名失败: {}", e)))?;
@@ -110,7 +111,7 @@ impl WebPushService {
         // 构建消息
         let mut message_builder = WebPushMessageBuilder::new(&subscription_info)
             .map_err(|e| AppError::InternalError(format!("创建消息构建器失败: {}", e)))?;
-        
+
         message_builder.set_payload(ContentEncoding::Aes128Gcm, payload_json.as_bytes());
         message_builder.set_vapid_signature(signature);
 
@@ -119,30 +120,27 @@ impl WebPushService {
             .map_err(|e| AppError::InternalError(format!("构建推送消息失败: {}", e)))?;
 
         // 发送推送
-        self.client
-            .send(message)
-            .await
-            .map_err(|e| {
-                tracing::error!(
-                    error = %e,
-                    subscription_id = %subscription.id,
-                    "Web Push 发送失败"
-                );
-                
-                // 如果是 410 Gone 或 404 Not Found，标记订阅为不活跃
-                if let web_push::WebPushError::EndpointNotValid = e {
-                    // 异步标记订阅为不活跃（不阻塞）
-                    let repo = self.notification_repo.clone();
-                    let sub_id = subscription.id;
-                    tokio::spawn(async move {
-                        if let Err(e) = repo.deactivate_web_push_subscription(sub_id).await {
-                            tracing::error!(error = %e, "标记订阅为不活跃失败");
-                        }
-                    });
-                }
-                
-                AppError::InternalError(format!("Web Push 发送失败: {}", e))
-            })?;
+        self.client.send(message).await.map_err(|e| {
+            tracing::error!(
+                error = %e,
+                subscription_id = %subscription.id,
+                "Web Push 发送失败"
+            );
+
+            // 如果是 410 Gone 或 404 Not Found，标记订阅为不活跃
+            if let web_push::WebPushError::EndpointNotValid = e {
+                // 异步标记订阅为不活跃（不阻塞）
+                let repo = self.notification_repo.clone();
+                let sub_id = subscription.id;
+                tokio::spawn(async move {
+                    if let Err(e) = repo.deactivate_web_push_subscription(sub_id).await {
+                        tracing::error!(error = %e, "标记订阅为不活跃失败");
+                    }
+                });
+            }
+
+            AppError::InternalError(format!("Web Push 发送失败: {}", e))
+        })?;
 
         // 更新最后使用时间
         self.notification_repo

@@ -48,7 +48,7 @@ impl CacheService {
     /// 批量删除缓存（按模式）
     pub async fn delete_pattern(&self, pattern: &str) -> Result<u64, AppError> {
         let mut conn = self.redis_pool.connection();
-        
+
         // 查找匹配的键
         let keys: Vec<String> = redis::cmd("KEYS")
             .arg(pattern)

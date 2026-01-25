@@ -113,12 +113,24 @@ impl Default for SmtpSettings {
     }
 }
 
-fn default_smtp_host() -> String { "smtp.example.com".to_string() }
-fn default_smtp_port() -> u16 { 587 }
-fn default_from_name() -> String { "Zinnia".to_string() }
-fn default_code_expiry() -> u64 { 600 }
-fn default_max_sends() -> u32 { 5 }
-fn default_true() -> bool { true }
+fn default_smtp_host() -> String {
+    "smtp.example.com".to_string()
+}
+fn default_smtp_port() -> u16 {
+    587
+}
+fn default_from_name() -> String {
+    "Zinnia".to_string()
+}
+fn default_code_expiry() -> u64 {
+    600
+}
+fn default_max_sends() -> u32 {
+    5
+}
+fn default_true() -> bool {
+    true
+}
 
 /// Google reCAPTCHA 配置
 #[derive(Debug, Clone, Deserialize)]
@@ -144,7 +156,9 @@ impl Default for RecaptchaSettings {
     }
 }
 
-fn default_score_threshold() -> f64 { 0.5 }
+fn default_score_threshold() -> f64 {
+    0.5
+}
 
 /// 注册安全配置
 #[derive(Debug, Clone, Deserialize)]
@@ -174,55 +188,95 @@ impl Default for RegistrationSettings {
     }
 }
 
-fn default_max_per_hour() -> u32 { 5 }
-fn default_max_per_day() -> u32 { 10 }
+fn default_max_per_hour() -> u32 {
+    5
+}
+fn default_max_per_day() -> u32 {
+    10
+}
 
 impl Settings {
     /// 从环境变量加载配置（不依赖配置文件）
-    /// 
+    ///
     /// 配置优先级：
     /// 1. 内置默认值（代码中定义）
     /// 2. ZINNIA_* 环境变量（覆盖默认值）
-    /// 
+    ///
     /// 示例：
     /// - ZINNIA_SERVER__HOST=0.0.0.0
     /// - ZINNIA_SERVER__PORT=8080
     /// - ZINNIA_LOGGING__LEVEL=info
     pub fn load() -> Result<Self, ConfigError> {
         let app_env = env::var("APP_ENV").unwrap_or_else(|_| "production".into());
-        
+
         let settings = Config::builder()
             // 服务器默认配置
             .set_default("server.host", "0.0.0.0")?
             .set_default("server.port", 8080)?
-            .set_default("server.workers", 0)?  // 0 = 自动检测 CPU 核心数
-            
+            .set_default("server.workers", 0)? // 0 = 自动检测 CPU 核心数
             // 数据库默认配置
-            .set_default("database.max_connections", if app_env == "production" { 50 } else { 10 })?
-            .set_default("database.min_connections", if app_env == "production" { 10 } else { 2 })?
-            .set_default("database.connect_timeout_seconds", if app_env == "production" { 10 } else { 30 })?
-            .set_default("database.idle_timeout_seconds", if app_env == "production" { 300 } else { 600 })?
+            .set_default(
+                "database.max_connections",
+                if app_env == "production" { 50 } else { 10 },
+            )?
+            .set_default(
+                "database.min_connections",
+                if app_env == "production" { 10 } else { 2 },
+            )?
+            .set_default(
+                "database.connect_timeout_seconds",
+                if app_env == "production" { 10 } else { 30 },
+            )?
+            .set_default(
+                "database.idle_timeout_seconds",
+                if app_env == "production" { 300 } else { 600 },
+            )?
             .set_default("database.require_ssl", app_env == "production")?
-            
             // Redis 默认配置
-            .set_default("redis.pool_size", if app_env == "production" { 20 } else { 10 })?
-            .set_default("redis.connect_timeout_seconds", if app_env == "production" { 3 } else { 5 })?
-            
+            .set_default(
+                "redis.pool_size",
+                if app_env == "production" { 20 } else { 10 },
+            )?
+            .set_default(
+                "redis.connect_timeout_seconds",
+                if app_env == "production" { 3 } else { 5 },
+            )?
             // JWT 默认配置
-            .set_default("jwt.expiry_seconds", 900)?  // 15 分钟
+            .set_default("jwt.expiry_seconds", 900)? // 15 分钟
             .set_default("jwt.refresh_expiry_days", 7)?
-            .set_default("jwt.issuer", if app_env == "production" { "zinnia" } else { "zinnia-dev" })?
+            .set_default(
+                "jwt.issuer",
+                if app_env == "production" {
+                    "zinnia"
+                } else {
+                    "zinnia-dev"
+                },
+            )?
             .set_default("jwt.audience", "zinnia-api")?
-            
             // 限流默认配置
             .set_default("rate_limit.requests_per_minute", 60)?
             .set_default("rate_limit.burst_size", 10)?
-            .set_default("rate_limit.login_attempts_per_minute", if app_env == "production" { 5 } else { 10 })?
-            
+            .set_default(
+                "rate_limit.login_attempts_per_minute",
+                if app_env == "production" { 5 } else { 10 },
+            )?
             // 日志默认配置
-            .set_default("logging.level", if app_env == "production" { "info" } else { "debug" })?
-            .set_default("logging.format", if app_env == "production" { "json" } else { "pretty" })?
-            
+            .set_default(
+                "logging.level",
+                if app_env == "production" {
+                    "info"
+                } else {
+                    "debug"
+                },
+            )?
+            .set_default(
+                "logging.format",
+                if app_env == "production" {
+                    "json"
+                } else {
+                    "pretty"
+                },
+            )?
             // SMTP 默认配置
             .set_default("smtp.enabled", false)?
             .set_default("smtp.host", "smtp.example.com")?
@@ -232,18 +286,15 @@ impl Settings {
             .set_default("smtp.tls", true)?
             .set_default("smtp.code_expiry_seconds", 600)?
             .set_default("smtp.max_sends_per_hour", 30)?
-            
             // reCAPTCHA 默认配置
             .set_default("recaptcha.enabled", false)?
             .set_default("recaptcha.site_key", "")?
             .set_default("recaptcha.score_threshold", 0.5)?
-            
             // 注册安全默认配置
             .set_default("registration.max_per_ip_per_hour", 5)?
             .set_default("registration.max_per_ip_per_day", 10)?
             .set_default("registration.require_email_verification", true)?
             .set_default("registration.require_recaptcha", true)?
-            
             // 环境变量覆盖（最高优先级）
             .add_source(
                 Environment::with_prefix("ZINNIA")
@@ -258,32 +309,24 @@ impl Settings {
     /// 获取数据库连接 URL（从环境变量）
     pub fn database_url() -> SecretString {
         SecretString::new(
-            env::var("DATABASE_URL")
-                .expect("DATABASE_URL must be set in environment")
+            env::var("DATABASE_URL").expect("DATABASE_URL must be set in environment"),
         )
     }
 
     /// 获取 Redis 连接 URL（从环境变量）
     pub fn redis_url() -> SecretString {
-        SecretString::new(
-            env::var("REDIS_URL")
-                .expect("REDIS_URL must be set in environment")
-        )
+        SecretString::new(env::var("REDIS_URL").expect("REDIS_URL must be set in environment"))
     }
 
     /// 获取 JWT 密钥（从环境变量）
     pub fn jwt_secret() -> SecretString {
-        SecretString::new(
-            env::var("JWT_SECRET")
-                .expect("JWT_SECRET must be set in environment")
-        )
+        SecretString::new(env::var("JWT_SECRET").expect("JWT_SECRET must be set in environment"))
     }
 
     /// 获取加密密钥（从环境变量）
     pub fn encryption_key() -> SecretString {
         SecretString::new(
-            env::var("ENCRYPTION_KEY")
-                .expect("ENCRYPTION_KEY must be set in environment")
+            env::var("ENCRYPTION_KEY").expect("ENCRYPTION_KEY must be set in environment"),
         )
     }
 
@@ -321,7 +364,7 @@ mod tests {
     fn test_load_development_config() {
         // 设置测试环境
         env::set_var("APP_ENV", "development");
-        
+
         // 注意：此测试需要存在配置文件才能通过
         // let settings = Settings::load();
         // assert!(settings.is_ok());

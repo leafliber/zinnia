@@ -3,14 +3,6 @@
 mod settings;
 
 pub use settings::{
-	Settings,
-	ServerSettings,
-	DatabaseSettings,
-	RedisSettings,
-	JwtSettings,
-	RateLimitSettings,
-	LoggingSettings,
-	SmtpSettings,
-	RecaptchaSettings,
-	RegistrationSettings,
+    DatabaseSettings, JwtSettings, LoggingSettings, RateLimitSettings, RecaptchaSettings,
+    RedisSettings, RegistrationSettings, ServerSettings, Settings, SmtpSettings,
 };

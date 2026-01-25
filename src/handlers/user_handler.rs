@@ -3,12 +3,11 @@
 use crate::errors::AppError;
 use crate::middleware::AuthInfo;
 use crate::models::{
-    ApiResponse, ChangePasswordRequest, LoginRequest, RefreshTokenRequest,
-    RegisterRequest, UpdateUserRequest, UserInfo, UserListQuery, UserRole,
-    ShareDeviceRequest,
+    ApiResponse, ChangePasswordRequest, LoginRequest, RefreshTokenRequest, RegisterRequest,
+    ShareDeviceRequest, UpdateUserRequest, UserInfo, UserListQuery, UserRole,
 };
 use crate::repositories::DeviceRepository;
-use crate::services::{UserService, AlertService};
+use crate::services::{AlertService, UserService};
 use crate::utils::{clear_auth_cookies, extract_refresh_token, set_auth_cookies};
 use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
 use std::sync::Arc;
@@ -188,7 +187,9 @@ pub async fn change_password(
         .map_err(|e| AppError::ValidationError(e.to_string()))?;
 
     let user_id = extract_user_id(&req)?;
-    user_service.change_password(user_id, body.into_inner()).await?;
+    user_service
+        .change_password(user_id, body.into_inner())
+        .await?;
     Ok(HttpResponse::Ok().json(ApiResponse::<()>::success_message("密码修改成功")))
 }
 
@@ -219,8 +220,9 @@ pub async fn list_users(
     query: web::Query<UserListQuery>,
 ) -> Result<HttpResponse, AppError> {
     require_admin(&req)?;
-    
-    query.validate()
+
+    query
+        .validate()
         .map_err(|e| AppError::ValidationError(e.to_string()))?;
 
     let response = user_service.list_users(query.into_inner()).await?;
@@ -234,7 +236,7 @@ pub async fn get_user(
     path: web::Path<Uuid>,
 ) -> Result<HttpResponse, AppError> {
     require_admin(&req)?;
-    
+
     let user_id = path.into_inner();
     let user = user_service.get_user_by_id(user_id).await?;
     let user_info: UserInfo = user.into();
@@ -249,7 +251,7 @@ pub async fn update_user(
     body: web::Json<UpdateUserRequest>,
 ) -> Result<HttpResponse, AppError> {
     require_admin(&req)?;
-    
+
     body.validate()
         .map_err(|e| AppError::ValidationError(e.to_string()))?;
 
@@ -271,9 +273,11 @@ pub async fn update_user_role(
     body: web::Json<UpdateRoleRequest>,
 ) -> Result<HttpResponse, AppError> {
     require_admin(&req)?;
-    
+
     let user_id = path.into_inner();
-    let user_info = user_service.update_user_role(user_id, body.role.clone()).await?;
+    let user_info = user_service
+        .update_user_role(user_id, body.role.clone())
+        .await?;
     Ok(HttpResponse::Ok().json(ApiResponse::success(user_info)))
 }
 
@@ -290,11 +294,17 @@ pub async fn set_user_active(
     body: web::Json<SetActiveRequest>,
 ) -> Result<HttpResponse, AppError> {
     require_admin(&req)?;
-    
+
     let user_id = path.into_inner();
-    user_service.set_user_active(user_id, body.is_active).await?;
-    
-    let message = if body.is_active { "用户已启用" } else { "用户已禁用" };
+    user_service
+        .set_user_active(user_id, body.is_active)
+        .await?;
+
+    let message = if body.is_active {
+        "用户已启用"
+    } else {
+        "用户已禁用"
+    };
     Ok(HttpResponse::Ok().json(ApiResponse::<()>::success_message(message)))
 }
 
@@ -305,7 +315,7 @@ pub async fn delete_user(
     path: web::Path<Uuid>,
 ) -> Result<HttpResponse, AppError> {
     require_admin(&req)?;
-    
+
     let user_id = path.into_inner();
     user_service.delete_user(user_id).await?;
     Ok(HttpResponse::NoContent().finish())
@@ -322,15 +332,15 @@ pub async fn share_device(
     body: web::Json<ShareDeviceRequest>,
 ) -> Result<HttpResponse, AppError> {
     let user_id = extract_user_id(&req)?;
-    
+
     body.validate()
         .map_err(|e| AppError::ValidationError(e.to_string()))?;
 
     let device_id = path.into_inner();
-    
+
     // 验证用户是否有权限共享此设备（需要是设备所有者或管理员）
     verify_device_ownership(&req, device_id, &device_repo, user_id).await?;
-    
+
     let share = user_service
         .share_device(device_id, &body.user_identifier, body.permission.clone())
         .await?;
@@ -347,11 +357,13 @@ pub async fn remove_device_share(
 ) -> Result<HttpResponse, AppError> {
     let user_id = extract_user_id(&req)?;
     let (device_id, target_user_id) = path.into_inner();
-    
+
     // 验证用户是否有权限取消共享
     verify_device_ownership(&req, device_id, &device_repo, user_id).await?;
-    
-    user_service.unshare_device(device_id, target_user_id).await?;
+
+    user_service
+        .unshare_device(device_id, target_user_id)
+        .await?;
     Ok(HttpResponse::NoContent().finish())
 }
 
@@ -364,10 +376,10 @@ pub async fn get_device_shares(
 ) -> Result<HttpResponse, AppError> {
     let user_id = extract_user_id(&req)?;
     let device_id = path.into_inner();
-    
+
     // 验证用户是否有权限查看共享列表（所有者或被共享者或管理员）
     verify_device_access(&req, device_id, &device_repo, user_id).await?;
-    
+
     let shares = user_service.get_device_shares(device_id).await?;
     Ok(HttpResponse::Ok().json(ApiResponse::success(shares)))
 }
@@ -420,13 +432,13 @@ async fn verify_device_ownership(
     if is_admin(req) {
         return Ok(());
     }
-    
+
     // 检查设备是否存在
     let device = device_repo
         .find_by_id(device_id)
         .await?
         .ok_or_else(|| AppError::NotFound("设备不存在".to_string()))?;
-    
+
     // 检查是否是设备所有者
     match device.owner_id {
         Some(owner_id) if owner_id == user_id => Ok(()),
@@ -445,12 +457,12 @@ async fn verify_device_access(
     if is_admin(req) {
         return Ok(());
     }
-    
+
     // 检查用户是否有访问权限（所有者或被共享者）
     let has_access = device_repo.user_can_access(device_id, user_id).await?;
     if has_access {
         return Ok(());
     }
-    
+
     Err(AppError::Forbidden("无权访问此设备".to_string()))
 }

@@ -3,7 +3,9 @@
 use crate::errors::AppError;
 use crate::models::ApiResponse;
 use crate::services::AuthService;
-use crate::utils::{clear_auth_cookies, extract_access_token, extract_refresh_token, set_auth_cookies};
+use crate::utils::{
+    clear_auth_cookies, extract_access_token, extract_refresh_token, set_auth_cookies,
+};
 use actix_web::{web, HttpRequest, HttpResponse};
 use serde::Deserialize;
 use std::sync::Arc;
@@ -32,9 +34,7 @@ pub async fn authenticate(
     auth_service: web::Data<Arc<AuthService>>,
     body: web::Json<AuthRequest>,
 ) -> Result<HttpResponse, AppError> {
-    let token_pair = auth_service
-        .authenticate_device(&body.api_key)
-        .await?;
+    let token_pair = auth_service.authenticate_device(&body.api_key).await?;
 
     // 设置 httpOnly cookie
     let res = HttpResponse::Ok().json(ApiResponse::success(token_pair.clone()));
@@ -57,9 +57,7 @@ pub async fn refresh_token(
             .ok_or_else(|| AppError::ValidationError("缺少刷新令牌".to_string()))?,
     };
 
-    let token_pair = auth_service
-        .refresh_token(&refresh_token)
-        .await?;
+    let token_pair = auth_service.refresh_token(&refresh_token).await?;
 
     // 更新 httpOnly cookie
     let res = HttpResponse::Ok().json(ApiResponse::success(token_pair.clone()));

@@ -33,12 +33,30 @@ pub fn configure(
                         .route("/revoke", web::post().to(handlers::revoke_token))
                         .route("/logout", web::post().to(handlers::logout))
                         // 验证相关路由（公开）
-                        .route("/recaptcha/config", web::get().to(handlers::get_recaptcha_config))
-                        .route("/registration/config", web::get().to(handlers::get_registration_security_config))
-                        .route("/verification/send", web::post().to(handlers::send_verification_code))
-                        .route("/verification/verify", web::post().to(handlers::verify_code))
-                        .route("/password-reset/send", web::post().to(handlers::send_password_reset_code))
-                        .route("/password-reset/confirm", web::post().to(handlers::confirm_password_reset)),
+                        .route(
+                            "/recaptcha/config",
+                            web::get().to(handlers::get_recaptcha_config),
+                        )
+                        .route(
+                            "/registration/config",
+                            web::get().to(handlers::get_registration_security_config),
+                        )
+                        .route(
+                            "/verification/send",
+                            web::post().to(handlers::send_verification_code),
+                        )
+                        .route(
+                            "/verification/verify",
+                            web::post().to(handlers::verify_code),
+                        )
+                        .route(
+                            "/password-reset/send",
+                            web::post().to(handlers::send_password_reset_code),
+                        )
+                        .route(
+                            "/password-reset/confirm",
+                            web::post().to(handlers::confirm_password_reset),
+                        ),
                 )
                 // 用户路由
                 .service(
@@ -57,16 +75,28 @@ pub fn configure(
                                 .route("/me/password", web::put().to(handlers::change_password))
                                 .route("/logout-all", web::post().to(handlers::logout_all))
                                 // 设备共享路由（需要认证）
-                                .route("/devices/{device_id}/share", web::post().to(handlers::share_device))
-                                .route("/devices/{device_id}/share/{target_user_id}", web::delete().to(handlers::remove_device_share))
-                                .route("/devices/{device_id}/shares", web::get().to(handlers::get_device_shares))
+                                .route(
+                                    "/devices/{device_id}/share",
+                                    web::post().to(handlers::share_device),
+                                )
+                                .route(
+                                    "/devices/{device_id}/share/{target_user_id}",
+                                    web::delete().to(handlers::remove_device_share),
+                                )
+                                .route(
+                                    "/devices/{device_id}/shares",
+                                    web::get().to(handlers::get_device_shares),
+                                )
                                 // 管理员路由
                                 .route("", web::get().to(handlers::list_users))
                                 .route("/{user_id}", web::get().to(handlers::get_user))
                                 .route("/{user_id}", web::put().to(handlers::update_user))
                                 .route("/{user_id}", web::delete().to(handlers::delete_user))
                                 .route("/{user_id}/role", web::put().to(handlers::update_user_role))
-                                .route("/{user_id}/active", web::put().to(handlers::set_user_active))
+                                .route(
+                                    "/{user_id}/active",
+                                    web::put().to(handlers::set_user_active),
+                                ),
                         ),
                 )
                 // 电量路由（需要认证 - 支持 JWT 和 API Key）
@@ -74,11 +104,26 @@ pub fn configure(
                     web::scope("/battery")
                         .wrap(jwt_or_apikey_auth.clone())
                         .route("/report", web::post().to(handlers::report_battery))
-                        .route("/batch-report", web::post().to(handlers::batch_report_battery))
-                        .route("/latest/{device_id}", web::get().to(handlers::get_latest_battery))
-                        .route("/history/{device_id}", web::get().to(handlers::get_battery_history))
-                        .route("/aggregated/{device_id}", web::get().to(handlers::get_battery_aggregated))
-                        .route("/stats/{device_id}", web::get().to(handlers::get_battery_stats)),
+                        .route(
+                            "/batch-report",
+                            web::post().to(handlers::batch_report_battery),
+                        )
+                        .route(
+                            "/latest/{device_id}",
+                            web::get().to(handlers::get_latest_battery),
+                        )
+                        .route(
+                            "/history/{device_id}",
+                            web::get().to(handlers::get_battery_history),
+                        )
+                        .route(
+                            "/aggregated/{device_id}",
+                            web::get().to(handlers::get_battery_aggregated),
+                        )
+                        .route(
+                            "/stats/{device_id}",
+                            web::get().to(handlers::get_battery_stats),
+                        ),
                 )
                 // 设备路由（需要认证/管理员权限）
                 .service(
@@ -90,21 +135,48 @@ pub fn configure(
                         .route("/{id}", web::put().to(handlers::update_device))
                         .route("/{id}", web::delete().to(handlers::delete_device))
                         .route("/{id}/config", web::get().to(handlers::get_device_config))
-                        .route("/{id}/config", web::put().to(handlers::update_device_config))
-                        .route("/{id}/rotate-key", web::post().to(handlers::rotate_device_api_key))
+                        .route(
+                            "/{id}/config",
+                            web::put().to(handlers::update_device_config),
+                        )
+                        .route(
+                            "/{id}/rotate-key",
+                            web::post().to(handlers::rotate_device_api_key),
+                        )
                         // 设备访问令牌管理
-                        .route("/{id}/tokens", web::post().to(handlers::create_device_token))
+                        .route(
+                            "/{id}/tokens",
+                            web::post().to(handlers::create_device_token),
+                        )
                         .route("/{id}/tokens", web::get().to(handlers::list_device_tokens))
-                        .route("/{id}/tokens", web::delete().to(handlers::revoke_all_device_tokens))
-                        .route("/{id}/tokens/{token_id}", web::delete().to(handlers::revoke_device_token)),
+                        .route(
+                            "/{id}/tokens",
+                            web::delete().to(handlers::revoke_all_device_tokens),
+                        )
+                        .route(
+                            "/{id}/tokens/{token_id}",
+                            web::delete().to(handlers::revoke_device_token),
+                        ),
                 )
                 // 兼容模式路由（无需请求头认证，通过 URL 参数认证）
                 .service(
                     web::scope("/compat")
-                        .route("/battery/report", web::get().to(handlers::compat_report_battery))
-                        .route("/battery/report", web::post().to(handlers::compat_report_battery))
-                        .route("/battery/simple", web::get().to(handlers::compat_simple_report))
-                        .route("/battery/latest", web::get().to(handlers::compat_get_latest_battery))
+                        .route(
+                            "/battery/report",
+                            web::get().to(handlers::compat_report_battery),
+                        )
+                        .route(
+                            "/battery/report",
+                            web::post().to(handlers::compat_report_battery),
+                        )
+                        .route(
+                            "/battery/simple",
+                            web::get().to(handlers::compat_simple_report),
+                        )
+                        .route(
+                            "/battery/latest",
+                            web::get().to(handlers::compat_get_latest_battery),
+                        )
                         .route("/ping", web::get().to(handlers::compat_ping)),
                 )
                 // 预警路由（需要认证）
@@ -116,22 +188,52 @@ pub fn configure(
                         .route("/rules/{id}", web::put().to(handlers::update_alert_rule))
                         .route("/rules/{id}", web::delete().to(handlers::delete_alert_rule))
                         .route("/events", web::get().to(handlers::list_alert_events))
-                        .route("/events/{id}/acknowledge", web::post().to(handlers::acknowledge_alert))
-                        .route("/events/{id}/resolve", web::post().to(handlers::resolve_alert))
-                        .route("/events/{id}/status", web::put().to(handlers::update_alert_status))
-                        .route("/devices/{device_id}/count", web::get().to(handlers::count_active_alerts)),
+                        .route(
+                            "/events/{id}/acknowledge",
+                            web::post().to(handlers::acknowledge_alert),
+                        )
+                        .route(
+                            "/events/{id}/resolve",
+                            web::post().to(handlers::resolve_alert),
+                        )
+                        .route(
+                            "/events/{id}/status",
+                            web::put().to(handlers::update_alert_status),
+                        )
+                        .route(
+                            "/devices/{device_id}/count",
+                            web::get().to(handlers::count_active_alerts),
+                        ),
                 )
                 // 通知偏好路由（需要认证）
                 .service(
                     web::scope("/notifications")
                         .wrap(jwt_auth.clone())
-                        .route("/preferences", web::get().to(handlers::get_notification_preference))
-                        .route("/preferences", web::put().to(handlers::update_notification_preference))
+                        .route(
+                            "/preferences",
+                            web::get().to(handlers::get_notification_preference),
+                        )
+                        .route(
+                            "/preferences",
+                            web::put().to(handlers::update_notification_preference),
+                        )
                         // Web Push 订阅管理
-                        .route("/web-push/vapid-key", web::get().to(handlers::get_vapid_public_key))
-                        .route("/web-push/subscribe", web::post().to(handlers::subscribe_web_push))
-                        .route("/web-push/subscriptions", web::get().to(handlers::list_web_push_subscriptions))
-                        .route("/web-push/subscriptions/{id}", web::delete().to(handlers::unsubscribe_web_push)),
+                        .route(
+                            "/web-push/vapid-key",
+                            web::get().to(handlers::get_vapid_public_key),
+                        )
+                        .route(
+                            "/web-push/subscribe",
+                            web::post().to(handlers::subscribe_web_push),
+                        )
+                        .route(
+                            "/web-push/subscriptions",
+                            web::get().to(handlers::list_web_push_subscriptions),
+                        )
+                        .route(
+                            "/web-push/subscriptions/{id}",
+                            web::delete().to(handlers::unsubscribe_web_push),
+                        ),
                 ),
         );
 }

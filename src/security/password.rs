@@ -20,7 +20,11 @@ fn create_argon2() -> Result<Argon2<'static>, AppError> {
     let params = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LENGTH))
         .map_err(|e| AppError::InternalError(format!("Argon2 参数错误: {}", e)))?;
 
-    Ok(Argon2::new(argon2::Algorithm::Argon2id, Version::V0x13, params))
+    Ok(Argon2::new(
+        argon2::Algorithm::Argon2id,
+        Version::V0x13,
+        params,
+    ))
 }
 
 /// 哈希密码
@@ -87,7 +91,7 @@ mod tests {
     fn test_hash_and_verify() {
         let password = "MySecurePassword123!";
         let hash = hash_password(password).unwrap();
-        
+
         assert!(verify_password(password, &hash).unwrap());
         assert!(!verify_password("wrong_password", &hash).unwrap());
     }

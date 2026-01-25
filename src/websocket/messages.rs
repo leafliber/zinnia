@@ -13,19 +13,19 @@ use uuid::Uuid;
 pub enum ClientMessage {
     /// 认证消息
     Auth(AuthMessage),
-    
+
     /// 电量上报
     BatteryReport(BatteryReportMessage),
-    
+
     /// 批量电量上报
     BatchBatteryReport(BatchBatteryReportMessage),
-    
+
     /// 心跳
     Ping,
-    
+
     /// 订阅设备数据推送（用户端）
     Subscribe(SubscribeMessage),
-    
+
     /// 取消订阅
     Unsubscribe(UnsubscribeMessage),
 }
@@ -36,28 +36,28 @@ pub enum ClientMessage {
 pub enum ServerMessage {
     /// 认证结果
     AuthResult(AuthResultMessage),
-    
+
     /// 电量上报结果
     BatteryReportResult(BatteryReportResultMessage),
-    
+
     /// 批量上报结果
     BatchBatteryReportResult(BatchReportResultMessage),
-    
+
     /// 心跳响应
     Pong,
-    
+
     /// 订阅结果
     SubscribeResult(SubscribeResultMessage),
-    
+
     /// 推送的电量数据（用户订阅后收到）
     BatteryPush(BatteryPushMessage),
-    
+
     /// 预警推送
     AlertPush(AlertPushMessage),
-    
+
     /// 错误消息
     Error(ErrorMessage),
-    
+
     /// 连接成功消息
     Connected(ConnectedMessage),
 }
@@ -67,7 +67,7 @@ pub enum ServerMessage {
 pub struct AuthMessage {
     /// 认证令牌（设备访问令牌或 JWT）
     pub token: String,
-    
+
     /// 认证类型
     #[serde(default)]
     pub auth_type: AuthType,
@@ -80,7 +80,7 @@ pub enum AuthType {
     /// 设备访问令牌
     #[default]
     DeviceToken,
-    
+
     /// JWT（用户令牌）
     Jwt,
 }
@@ -101,27 +101,27 @@ pub struct AuthResultMessage {
 pub struct BatteryReportMessage {
     /// 电量值 (0-100)
     pub battery_level: i32,
-    
+
     /// 是否正在充电
     #[serde(default)]
     pub is_charging: bool,
-    
+
     /// 省电模式
     #[serde(default)]
     pub power_saving_mode: PowerSavingMode,
-    
+
     /// 温度（可选）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f64>,
-    
+
     /// 电压（可选）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub voltage: Option<f64>,
-    
+
     /// 设备端记录时间（可选，默认服务器时间）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recorded_at: Option<DateTime<Utc>>,
-    
+
     /// 消息 ID（可选，用于追踪请求响应）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub msg_id: Option<String>,
@@ -132,7 +132,7 @@ pub struct BatteryReportMessage {
 pub struct BatchBatteryReportMessage {
     /// 批量数据
     pub data: Vec<BatteryReportMessage>,
-    
+
     /// 消息 ID（可选）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub msg_id: Option<String>,
@@ -227,7 +227,7 @@ impl ServerMessage {
             message: message.into(),
         })
     }
-    
+
     /// 创建认证成功消息
     pub fn auth_success(device_id: Option<Uuid>, user_id: Option<Uuid>) -> Self {
         ServerMessage::AuthResult(AuthResultMessage {
@@ -237,7 +237,7 @@ impl ServerMessage {
             user_id,
         })
     }
-    
+
     /// 创建认证失败消息
     pub fn auth_failed(message: impl Into<String>) -> Self {
         ServerMessage::AuthResult(AuthResultMessage {
@@ -247,7 +247,7 @@ impl ServerMessage {
             user_id: None,
         })
     }
-    
+
     /// 创建电量上报成功消息
     pub fn battery_report_success(data: BatteryData, msg_id: Option<String>) -> Self {
         ServerMessage::BatteryReportResult(BatteryReportResultMessage {
@@ -257,7 +257,7 @@ impl ServerMessage {
             msg_id,
         })
     }
-    
+
     /// 创建电量上报失败消息
     pub fn battery_report_failed(error: impl Into<String>, msg_id: Option<String>) -> Self {
         ServerMessage::BatteryReportResult(BatteryReportResultMessage {

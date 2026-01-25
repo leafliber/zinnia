@@ -1,12 +1,12 @@
 //! 通知服务模块
-//! 
+//!
 //! 提供统一的通知接口，支持多种通知渠道（邮件、Webhook等）
 
 use crate::errors::AppError;
 use crate::models::{
-    AlertEvent, AlertLevel, EmailNotificationConfig, NotificationChannel,
-    SubscribeWebPushRequest, UpdateNotificationPreferenceRequest, UserNotificationPreference, 
-    WebhookNotificationConfig, WebPushNotificationConfig, WebPushSubscription,
+    AlertEvent, AlertLevel, EmailNotificationConfig, NotificationChannel, SubscribeWebPushRequest,
+    UpdateNotificationPreferenceRequest, UserNotificationPreference, WebPushNotificationConfig,
+    WebPushSubscription, WebhookNotificationConfig,
 };
 use crate::repositories::{DeviceRepository, NotificationRepository};
 use crate::services::alert_service::NotificationSender;
@@ -25,7 +25,11 @@ pub struct NotificationService {
 
 #[async_trait::async_trait]
 impl NotificationSender for NotificationService {
-    async fn send_alert_notification(&self, alert_event: &AlertEvent, user_id: Uuid) -> Result<(), AppError> {
+    async fn send_alert_notification(
+        &self,
+        alert_event: &AlertEvent,
+        user_id: Uuid,
+    ) -> Result<(), AppError> {
         self.send_alert_notification(alert_event, user_id).await
     }
 }
@@ -52,7 +56,10 @@ impl NotificationService {
     // ========== 通知偏好管理 ==========
 
     /// 获取用户的通知偏好
-    pub async fn get_user_preference(&self, user_id: Uuid) -> Result<Option<UserNotificationPreference>, AppError> {
+    pub async fn get_user_preference(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Option<UserNotificationPreference>, AppError> {
         self.notification_repo.get_user_preference(user_id).await
     }
 
@@ -149,7 +156,8 @@ impl NotificationService {
         }
 
         // 获取设备信息
-        let device = self.device_repo
+        let device = self
+            .device_repo
             .find_by_id(alert_event.device_id)
             .await?
             .ok_or_else(|| AppError::NotFound("设备不存在".to_string()))?;
@@ -158,7 +166,10 @@ impl NotificationService {
         let mut sent_any = false;
 
         // 1. 邮件通知
-        if let Err(e) = self.send_email_notification(&preference, alert_event, &device.name).await {
+        if let Err(e) = self
+            .send_email_notification(&preference, alert_event, &device.name)
+            .await
+        {
             tracing::error!(
                 error = %e,
                 user_id = %user_id,
@@ -170,7 +181,10 @@ impl NotificationService {
         }
 
         // 2. Webhook 通知（预留）
-        if let Err(e) = self.send_webhook_notification(&preference, alert_event, &device.name).await {
+        if let Err(e) = self
+            .send_webhook_notification(&preference, alert_event, &device.name)
+            .await
+        {
             tracing::error!(
                 error = %e,
                 user_id = %user_id,
@@ -182,7 +196,10 @@ impl NotificationService {
         }
 
         // 3. Web Push 通知
-        if let Err(e) = self.send_web_push_notification(&preference, alert_event, &device.name).await {
+        if let Err(e) = self
+            .send_web_push_notification(&preference, alert_event, &device.name)
+            .await
+        {
             tracing::error!(
                 error = %e,
                 user_id = %user_id,
@@ -223,7 +240,8 @@ impl NotificationService {
         }
 
         // 检查频率限制
-        if let Some(last_time) = self.notification_repo
+        if let Some(last_time) = self
+            .notification_repo
             .get_last_notification_time(preference.user_id, NotificationChannel::Email)
             .await?
         {
@@ -233,7 +251,7 @@ impl NotificationService {
                     user_id = %preference.user_id,
                     "邮件通知频率限制中"
                 );
-                
+
                 // 记录跳过
                 self.notification_repo
                     .create_notification_history(
@@ -245,13 +263,14 @@ impl NotificationService {
                         Some("频率限制"),
                     )
                     .await?;
-                
+
                 return Ok(());
             }
         }
 
         // 创建待发送记录
-        let history = self.notification_repo
+        let history = self
+            .notification_repo
             .create_notification_history(
                 alert_event.id,
                 preference.user_id,
@@ -271,11 +290,12 @@ impl NotificationService {
             device_name,
             value: alert_event.value,
             threshold: alert_event.threshold,
-            triggered_at: &alert_event.triggered_at.format("%Y-%m-%d %H:%M:%S UTC").to_string(),
+            triggered_at: &alert_event
+                .triggered_at
+                .format("%Y-%m-%d %H:%M:%S UTC")
+                .to_string(),
         };
-        let result = self.email_service
-            .send_alert_notification(params)
-            .await;
+        let result = self.email_service.send_alert_notification(params).await;
 
         // 更新发送状态
         match result {
@@ -314,7 +334,8 @@ impl NotificationService {
         }
 
         // 检查频率限制
-        if let Some(last_time) = self.notification_repo
+        if let Some(last_time) = self
+            .notification_repo
             .get_last_notification_time(preference.user_id, NotificationChannel::Webhook)
             .await?
         {
@@ -389,7 +410,8 @@ impl NotificationService {
         }
 
         // 检查频率限制
-        if let Some(last_time) = self.notification_repo
+        if let Some(last_time) = self
+            .notification_repo
             .get_last_notification_time(preference.user_id, NotificationChannel::Push)
             .await?
         {
@@ -399,7 +421,7 @@ impl NotificationService {
                     user_id = %preference.user_id,
                     "Web Push 通知频率限制中"
                 );
-                
+
                 // 记录跳过
                 self.notification_repo
                     .create_notification_history(
@@ -411,13 +433,14 @@ impl NotificationService {
                         Some("频率限制"),
                     )
                     .await?;
-                
+
                 return Ok(());
             }
         }
 
         // 创建待发送记录
-        let history = self.notification_repo
+        let history = self
+            .notification_repo
             .create_notification_history(
                 alert_event.id,
                 preference.user_id,
@@ -497,7 +520,11 @@ impl NotificationService {
     // ========== 辅助方法 ==========
 
     /// 检查预警级别是否需要通知
-    fn should_notify_for_level(&self, preference: &UserNotificationPreference, level: &AlertLevel) -> bool {
+    fn should_notify_for_level(
+        &self,
+        preference: &UserNotificationPreference,
+        level: &AlertLevel,
+    ) -> bool {
         match level {
             AlertLevel::Info => preference.notify_info,
             AlertLevel::Warning => preference.notify_warning,
@@ -513,10 +540,11 @@ impl NotificationService {
         };
 
         // 获取用户时区的当前时间
-        let tz: chrono_tz::Tz = preference.quiet_hours_timezone
+        let tz: chrono_tz::Tz = preference
+            .quiet_hours_timezone
             .parse()
             .unwrap_or(chrono_tz::UTC);
-        
+
         let now = Utc::now().with_timezone(&tz).time();
 
         // 处理跨午夜的情况
@@ -529,7 +557,8 @@ impl NotificationService {
 
     /// 检查Webhook是否启用
     fn is_webhook_enabled(&self, preference: &UserNotificationPreference) -> bool {
-        preference.webhook_config
+        preference
+            .webhook_config
             .as_ref()
             .and_then(|v| serde_json::from_value::<WebhookNotificationConfig>(v.clone()).ok())
             .is_some_and(|c| c.enabled)
@@ -537,7 +566,8 @@ impl NotificationService {
 
     /// 检查Web Push是否启用
     fn is_web_push_enabled(&self, preference: &UserNotificationPreference) -> bool {
-        preference.web_push_config
+        preference
+            .web_push_config
             .as_ref()
             .and_then(|v| serde_json::from_value::<WebPushNotificationConfig>(v.clone()).ok())
             .is_some_and(|c| c.enabled)

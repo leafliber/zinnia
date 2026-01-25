@@ -1,5 +1,5 @@
 //! 验证码服务模块
-//! 
+//!
 //! 管理邮箱验证码的生成、存储和验证
 
 use crate::config::Settings;
@@ -85,29 +85,30 @@ impl VerificationService {
         // 检查是否存在未过期的验证码（防止频繁请求）
         let key = self.get_key(code_type, email);
         let existing: Option<StoredCode> = self.redis_pool.get(&key).await?;
-        
+
         if existing.is_some() {
             // 获取剩余 TTL
             let ttl = self.redis_pool.ttl(&key).await.unwrap_or(0);
             let cooldown = self.code_expiry_seconds as i64 - 60; // 至少等待 1 分钟
-            
+
             if ttl > cooldown {
-                return Err(AppError::RateLimitExceeded(
-                    format!("请等待 {} 秒后再重新发送", ttl - cooldown)
-                ));
+                return Err(AppError::RateLimitExceeded(format!(
+                    "请等待 {} 秒后再重新发送",
+                    ttl - cooldown
+                )));
             }
         }
 
         // 生成新验证码
         let code = Self::generate_code();
-        
+
         // 存储验证码
         let stored = StoredCode {
             code: code.clone(),
             attempts: 0,
             email: email.to_string(),
         };
-        
+
         self.redis_pool
             .set_ex(&key, &stored, self.code_expiry_seconds)
             .await?;
@@ -149,14 +150,16 @@ impl VerificationService {
         code_type: VerificationCodeType,
     ) -> Result<bool, AppError> {
         let key = self.get_key(code_type, email);
-        
+
         // 获取存储的验证码
         let stored: Option<StoredCode> = self.redis_pool.get(&key).await?;
-        
+
         let mut stored = match stored {
             Some(s) => s,
             None => {
-                return Err(AppError::ValidationError("验证码不存在或已过期".to_string()));
+                return Err(AppError::ValidationError(
+                    "验证码不存在或已过期".to_string(),
+                ));
             }
         };
 
@@ -164,24 +167,29 @@ impl VerificationService {
         if stored.attempts >= 5 {
             // 删除验证码
             self.redis_pool.del(&key).await?;
-            return Err(AppError::ValidationError("验证码尝试次数过多，请重新获取".to_string()));
+            return Err(AppError::ValidationError(
+                "验证码尝试次数过多，请重新获取".to_string(),
+            ));
         }
 
         // 验证
         if stored.code != code {
             // 增加尝试次数
             stored.attempts += 1;
-            
-            // 获取剩余 TTL
-            let ttl = self.redis_pool.ttl(&key).await.unwrap_or(self.code_expiry_seconds as i64);
-            
-            self.redis_pool
-                .set_ex(&key, &stored, ttl as u64)
-                .await?;
 
-            return Err(AppError::ValidationError(
-                format!("验证码错误，还剩 {} 次尝试机会", 5 - stored.attempts)
-            ));
+            // 获取剩余 TTL
+            let ttl = self
+                .redis_pool
+                .ttl(&key)
+                .await
+                .unwrap_or(self.code_expiry_seconds as i64);
+
+            self.redis_pool.set_ex(&key, &stored, ttl as u64).await?;
+
+            return Err(AppError::ValidationError(format!(
+                "验证码错误，还剩 {} 次尝试机会",
+                5 - stored.attempts
+            )));
         }
 
         // 验证成功，删除验证码

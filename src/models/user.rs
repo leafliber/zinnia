@@ -39,7 +39,7 @@ pub struct User {
     pub role: UserRole,
     pub is_active: bool,
     pub email_verified: bool,
-    
+
     /// 登录失败次数
     #[serde(skip_serializing)]
     pub failed_login_attempts: i32,
@@ -47,10 +47,10 @@ pub struct User {
     #[serde(skip_serializing)]
     pub locked_until: Option<DateTime<Utc>>,
     pub last_login_at: Option<DateTime<Utc>>,
-    
+
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<serde_json::Value>,
 }
@@ -72,23 +72,23 @@ pub struct UserRefreshToken {
 pub struct RegisterRequest {
     #[validate(email(message = "邮箱格式无效"))]
     pub email: String,
-    
+
     #[validate(length(min = 3, max = 50, message = "用户名长度应在 3-50 字符之间"))]
     #[validate(custom(function = "validate_username"))]
     pub username: String,
-    
+
     #[validate(length(min = 8, max = 128, message = "密码长度应在 8-128 字符之间"))]
     pub password: String,
-    
+
     /// 确认密码（可选：若提供则必须与 `password` 一致）
     #[serde(default)]
     #[validate(length(min = 8, max = 128, message = "密码长度应在 8-128 字符之间"))]
     pub confirm_password: Option<String>,
-    
+
     /// reCAPTCHA 响应令牌（如果启用）
     #[serde(default)]
     pub recaptcha_token: Option<String>,
-    
+
     /// 邮箱验证码（如果启用邮箱验证）
     #[serde(default)]
     pub verification_code: Option<String>,
@@ -99,7 +99,7 @@ pub struct RegisterRequest {
 pub struct SendVerificationCodeRequest {
     #[validate(email(message = "邮箱格式无效"))]
     pub email: String,
-    
+
     /// reCAPTCHA 响应令牌
     #[serde(default)]
     pub recaptcha_token: Option<String>,
@@ -110,7 +110,7 @@ pub struct SendVerificationCodeRequest {
 pub struct VerifyCodeRequest {
     #[validate(email(message = "邮箱格式无效"))]
     pub email: String,
-    
+
     #[validate(length(equal = 6, message = "验证码应为6位数字"))]
     pub code: String,
 }
@@ -129,7 +129,9 @@ fn validate_username(username: &str) -> Result<(), validator::ValidationError> {
     if USERNAME_REGEX.is_match(username) {
         Ok(())
     } else {
-        Err(validator::ValidationError::new("用户名只能包含字母、数字和下划线"))
+        Err(validator::ValidationError::new(
+            "用户名只能包含字母、数字和下划线",
+        ))
     }
 }
 
@@ -139,10 +141,10 @@ pub struct LoginRequest {
     /// 邮箱或用户名
     #[validate(length(min = 1, message = "请输入邮箱或用户名"))]
     pub login: String,
-    
+
     #[validate(length(min = 1, message = "请输入密码"))]
     pub password: String,
-    
+
     /// 设备信息（可选）
     pub device_info: Option<String>,
 }
@@ -188,7 +190,7 @@ impl From<User> for UserInfo {
 pub struct UpdateUserRequest {
     #[validate(length(min = 3, max = 50, message = "用户名长度应在 3-50 字符之间"))]
     pub username: Option<String>,
-    
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<serde_json::Value>,
 }
@@ -198,10 +200,10 @@ pub struct UpdateUserRequest {
 pub struct ChangePasswordRequest {
     #[validate(length(min = 1, message = "请输入当前密码"))]
     pub current_password: String,
-    
+
     #[validate(length(min = 8, max = 128, message = "新密码长度应在 8-128 字符之间"))]
     pub new_password: String,
-    
+
     #[validate(must_match(other = "new_password", message = "两次输入的密码不一致"))]
     pub confirm_password: String,
 }
@@ -218,18 +220,22 @@ pub struct UserListQuery {
     #[validate(range(min = 1, max = 100, message = "每页数量应在 1-100 之间"))]
     #[serde(default = "default_page_size")]
     pub page_size: i64,
-    
+
     #[validate(range(min = 1, message = "页码应大于 0"))]
     #[serde(default = "default_page")]
     pub page: i64,
-    
+
     pub role: Option<UserRole>,
     pub is_active: Option<bool>,
     pub search: Option<String>,
 }
 
-fn default_page_size() -> i64 { 20 }
-fn default_page() -> i64 { 1 }
+fn default_page_size() -> i64 {
+    20
+}
+fn default_page() -> i64 {
+    1
+}
 
 /// 设备共享记录
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -265,12 +271,14 @@ pub struct ShareDeviceRequest {
     /// 目标用户邮箱或用户名
     #[validate(length(min = 1, message = "请指定用户"))]
     pub user_identifier: String,
-    
+
     #[serde(default = "default_permission")]
     pub permission: SharePermission,
 }
 
-fn default_permission() -> SharePermission { SharePermission::Read }
+fn default_permission() -> SharePermission {
+    SharePermission::Read
+}
 
 /// 共享详情响应
 #[derive(Debug, Clone, Serialize)]

@@ -146,12 +146,16 @@ impl ResponseError for AppError {
 
         // 构建附加字段：对于 ValidationError 我们在生产环境也要将具体信息传回前端
         let (err_type, details) = match self {
-            AppError::ValidationError(msg) => (Some("validation_error".to_string()), Some(msg.clone())),
+            AppError::ValidationError(msg) => {
+                (Some("validation_error".to_string()), Some(msg.clone()))
+            }
             AppError::Unauthorized(_) => (Some("unauthorized".to_string()), None),
             AppError::Forbidden(_) => (Some("forbidden".to_string()), None),
             AppError::NotFound(_) => (Some("not_found".to_string()), None),
             AppError::Conflict(msg) => (Some("conflict".to_string()), Some(msg.clone())),
-            AppError::RateLimitExceeded(msg) => (Some("rate_limit_exceeded".to_string()), Some(msg.clone())),
+            AppError::RateLimitExceeded(msg) => {
+                (Some("rate_limit_exceeded".to_string()), Some(msg.clone()))
+            }
             _ => (None, None),
         };
 

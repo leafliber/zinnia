@@ -68,10 +68,10 @@ impl Default for DeviceConfig {
 pub struct CreateDeviceRequest {
     #[validate(length(min = 1, max = 100, message = "设备名称长度应在 1-100 字符之间"))]
     pub name: String,
-    
+
     #[validate(length(min = 1, max = 50, message = "设备类型长度应在 1-50 字符之间"))]
     pub device_type: String,
-    
+
     #[serde(default)]
     pub metadata: Option<serde_json::Value>,
 }
@@ -90,9 +90,9 @@ pub struct CreateDeviceResponse {
 pub struct UpdateDeviceRequest {
     #[validate(length(min = 1, max = 100, message = "设备名称长度应在 1-100 字符之间"))]
     pub name: Option<String>,
-    
+
     pub status: Option<DeviceStatus>,
-    
+
     pub metadata: Option<serde_json::Value>,
 }
 
@@ -101,15 +101,13 @@ pub struct UpdateDeviceRequest {
 pub struct UpdateDeviceConfigRequest {
     #[validate(range(min = 1, max = 100, message = "低电量阈值应在 1-100 之间"))]
     pub low_battery_threshold: Option<i32>,
-    
+
     #[validate(range(min = 1, max = 100, message = "临界电量阈值应在 1-100 之间"))]
     pub critical_battery_threshold: Option<i32>,
-    
+
     #[validate(range(min = 10, max = 3600, message = "上报间隔应在 10-3600 秒之间"))]
     pub report_interval_seconds: Option<i32>,
-    
 
-    
     #[validate(range(min = -40.0, max = 200.0, message = "温度阈值应在 -40 到 200 摄氏度之间"))]
     pub high_temperature_threshold: Option<f64>,
 }
@@ -120,22 +118,26 @@ pub struct DeviceListQuery {
     #[validate(range(min = 1, max = 100, message = "每页数量应在 1-100 之间"))]
     #[serde(default = "default_page_size")]
     pub page_size: i64,
-    
+
     #[validate(range(min = 1, message = "页码应大于 0"))]
     #[serde(default = "default_page")]
     pub page: i64,
-    
+
     pub status: Option<DeviceStatus>,
     pub device_type: Option<String>,
-    
+
     /// 按所有者筛选（用于用户查看自己的设备）
     #[serde(skip)]
     pub owner_id: Option<Uuid>,
-    
+
     /// 包含共享给用户的设备
     #[serde(skip)]
     pub include_shared: bool,
 }
 
-fn default_page_size() -> i64 { 20 }
-fn default_page() -> i64 { 1 }
+fn default_page_size() -> i64 {
+    20
+}
+fn default_page() -> i64 {
+    1
+}

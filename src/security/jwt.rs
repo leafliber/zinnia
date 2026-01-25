@@ -135,7 +135,7 @@ impl JwtManager {
     /// 验证访问令牌
     pub fn validate_access_token(&self, token: &str) -> Result<Claims, AppError> {
         let claims = self.validate_token(token)?;
-        
+
         if claims.token_type != JwtTokenType::Access {
             return Err(AppError::Unauthorized("令牌类型错误".to_string()));
         }
@@ -146,7 +146,7 @@ impl JwtManager {
     /// 验证刷新令牌
     pub fn validate_refresh_token(&self, token: &str) -> Result<Claims, AppError> {
         let claims = self.validate_token(token)?;
-        
+
         if claims.token_type != JwtTokenType::Refresh {
             return Err(AppError::Unauthorized("令牌类型错误".to_string()));
         }
@@ -167,8 +167,7 @@ impl JwtManager {
 }
 
 /// 令牌对
-#[derive(Debug, Serialize)]
-#[derive(Clone)]
+#[derive(Debug, Serialize, Clone)]
 pub struct TokenPair {
     pub access_token: String,
     pub refresh_token: String,

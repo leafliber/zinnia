@@ -2,8 +2,8 @@
 
 use crate::errors::AppError;
 use crate::models::{
-    AlertEvent, AlertListQuery, AlertRule, AlertStatus, AlertType,
-    CreateAlertRuleRequest, PaginatedResponse, Pagination, UpdateAlertRuleRequest, UpdateAlertStatusRequest,
+    AlertEvent, AlertListQuery, AlertRule, AlertStatus, AlertType, CreateAlertRuleRequest,
+    PaginatedResponse, Pagination, UpdateAlertRuleRequest, UpdateAlertStatusRequest,
 };
 use crate::repositories::AlertRepository;
 use std::sync::Arc;
@@ -18,12 +18,16 @@ pub struct AlertService {
 /// 通知发送器trait（用于依赖注入）
 #[async_trait::async_trait]
 pub trait NotificationSender: Send + Sync {
-    async fn send_alert_notification(&self, alert_event: &AlertEvent, user_id: Uuid) -> Result<(), AppError>;
+    async fn send_alert_notification(
+        &self,
+        alert_event: &AlertEvent,
+        user_id: Uuid,
+    ) -> Result<(), AppError>;
 }
 
 impl AlertService {
     pub fn new(alert_repo: AlertRepository) -> Self {
-        Self { 
+        Self {
             alert_repo,
             notification_service: None,
         }
@@ -35,7 +39,11 @@ impl AlertService {
     }
 
     /// 创建预警规则（用户独立）
-    pub async fn create_rule(&self, user_id: Uuid, request: CreateAlertRuleRequest) -> Result<AlertRule, AppError> {
+    pub async fn create_rule(
+        &self,
+        user_id: Uuid,
+        request: CreateAlertRuleRequest,
+    ) -> Result<AlertRule, AppError> {
         self.alert_repo.create_rule(user_id, &request).await
     }
 
@@ -53,8 +61,15 @@ impl AlertService {
     }
 
     /// 更新预警规则（仅限用户自己的规则）
-    pub async fn update_rule(&self, rule_id: Uuid, user_id: Uuid, request: UpdateAlertRuleRequest) -> Result<AlertRule, AppError> {
-        self.alert_repo.update_rule(rule_id, user_id, &request).await
+    pub async fn update_rule(
+        &self,
+        rule_id: Uuid,
+        user_id: Uuid,
+        request: UpdateAlertRuleRequest,
+    ) -> Result<AlertRule, AppError> {
+        self.alert_repo
+            .update_rule(rule_id, user_id, &request)
+            .await
     }
 
     /// 删除预警规则（仅限用户自己的规则）
@@ -63,7 +78,13 @@ impl AlertService {
     }
 
     /// 触发低电量预警
-    pub async fn trigger_low_battery(&self, device_id: Uuid, user_id: Uuid, level: f64, threshold: f64) -> Result<Option<AlertEvent>, AppError> {
+    pub async fn trigger_low_battery(
+        &self,
+        device_id: Uuid,
+        user_id: Uuid,
+        level: f64,
+        threshold: f64,
+    ) -> Result<Option<AlertEvent>, AppError> {
         self.trigger_alert(
             device_id,
             user_id,
@@ -114,7 +135,11 @@ impl AlertService {
     }
 
     /// 触发设备离线预警
-    pub async fn trigger_device_offline(&self, device_id: Uuid, user_id: Uuid) -> Result<Option<AlertEvent>, AppError> {
+    pub async fn trigger_device_offline(
+        &self,
+        device_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<Option<AlertEvent>, AppError> {
         self.trigger_alert(
             device_id,
             user_id,
@@ -137,7 +162,11 @@ impl AlertService {
         message: &str,
     ) -> Result<Option<AlertEvent>, AppError> {
         // 获取对应的预警规则（用于级别和冷却时间）
-        let rule = match self.alert_repo.get_rule_by_type(user_id, &alert_type).await? {
+        let rule = match self
+            .alert_repo
+            .get_rule_by_type(user_id, &alert_type)
+            .await?
+        {
             Some(r) => r,
             None => {
                 tracing::debug!(
@@ -182,7 +211,10 @@ impl AlertService {
         // 发送通知
         if let Some(ref notification_service) = self.notification_service {
             // 获取设备所属用户ID
-            if let Err(e) = notification_service.send_alert_notification(&event, user_id).await {
+            if let Err(e) = notification_service
+                .send_alert_notification(&event, user_id)
+                .await
+            {
                 tracing::error!(
                     error = %e,
                     alert_id = %event.id,
@@ -203,7 +235,9 @@ impl AlertService {
         user_id: Uuid,
         request: UpdateAlertStatusRequest,
     ) -> Result<AlertEvent, AppError> {
-        self.alert_repo.update_event_status(event_id, user_id, &request).await
+        self.alert_repo
+            .update_event_status(event_id, user_id, &request)
+            .await
     }
 
     /// 确认预警
@@ -231,7 +265,11 @@ impl AlertService {
     }
 
     /// 查询预警列表（仅限用户设备）
-    pub async fn list(&self, user_id: Uuid, query: AlertListQuery) -> Result<PaginatedResponse<AlertEvent>, AppError> {
+    pub async fn list(
+        &self,
+        user_id: Uuid,
+        query: AlertListQuery,
+    ) -> Result<PaginatedResponse<AlertEvent>, AppError> {
         let (events, total) = self.alert_repo.list_events(user_id, &query).await?;
 
         let pagination = Pagination::new(query.page, query.page_size, total);

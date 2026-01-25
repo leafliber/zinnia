@@ -1,5 +1,5 @@
 //! reCAPTCHA 验证服务模块
-//! 
+//!
 //! 提供 Google reCAPTCHA v2/v3 验证功能
 
 use crate::config::{RecaptchaSettings, Settings};
@@ -46,8 +46,7 @@ impl RecaptchaService {
     /// 创建新的 reCAPTCHA 服务实例
     pub fn new(settings: &Settings) -> Self {
         let secret_key = if settings.recaptcha.enabled {
-            Settings::recaptcha_secret_key()
-                .map(|s| s.expose_secret().clone())
+            Settings::recaptcha_secret_key().map(|s| s.expose_secret().clone())
         } else {
             None
         };
@@ -93,14 +92,13 @@ impl RecaptchaService {
             });
         }
 
-        let secret = self.secret_key.as_ref()
+        let secret = self
+            .secret_key
+            .as_ref()
             .ok_or_else(|| AppError::ConfigError("reCAPTCHA 密钥未配置".to_string()))?;
 
         // 构建请求参数
-        let mut params = vec![
-            ("secret", secret.as_str()),
-            ("response", response_token),
-        ];
+        let mut params = vec![("secret", secret.as_str()), ("response", response_token)];
 
         if let Some(ip) = remote_ip {
             params.push(("remoteip", ip));
@@ -118,13 +116,10 @@ impl RecaptchaService {
                 AppError::InternalError("验证服务暂时不可用".to_string())
             })?;
 
-        let recaptcha_response: RecaptchaResponse = response
-            .json()
-            .await
-            .map_err(|e| {
-                tracing::error!(error = %e, "reCAPTCHA 响应解析失败");
-                AppError::InternalError("验证服务响应异常".to_string())
-            })?;
+        let recaptcha_response: RecaptchaResponse = response.json().await.map_err(|e| {
+            tracing::error!(error = %e, "reCAPTCHA 响应解析失败");
+            AppError::InternalError("验证服务响应异常".to_string())
+        })?;
 
         // 检查验证结果
         if !recaptcha_response.success {
@@ -132,7 +127,9 @@ impl RecaptchaService {
                 error_codes = ?recaptcha_response.error_codes,
                 "reCAPTCHA 验证失败"
             );
-            return Err(AppError::ValidationError("人机验证失败，请重试".to_string()));
+            return Err(AppError::ValidationError(
+                "人机验证失败，请重试".to_string(),
+            ));
         }
 
         // 对于 v3，检查分数
@@ -143,7 +140,9 @@ impl RecaptchaService {
                     threshold = self.settings.score_threshold,
                     "reCAPTCHA 分数过低"
                 );
-                return Err(AppError::ValidationError("安全验证未通过，请重试".to_string()));
+                return Err(AppError::ValidationError(
+                    "安全验证未通过，请重试".to_string(),
+                ));
             }
         }
 

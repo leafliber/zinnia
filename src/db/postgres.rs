@@ -18,7 +18,7 @@ impl PostgresPool {
     /// 创建新的数据库连接池
     pub async fn new(settings: &Settings) -> Result<Self, AppError> {
         let database_url = Settings::database_url();
-        
+
         // 解析连接选项
         let mut options = PgConnectOptions::from_str(database_url.expose_secret())
             .map_err(|e| AppError::ConfigError(format!("数据库 URL 无效: {}", e)))?;
@@ -32,7 +32,9 @@ impl PostgresPool {
         let pool = PgPoolOptions::new()
             .max_connections(settings.database.max_connections)
             .min_connections(settings.database.min_connections)
-            .acquire_timeout(Duration::from_secs(settings.database.connect_timeout_seconds))
+            .acquire_timeout(Duration::from_secs(
+                settings.database.connect_timeout_seconds,
+            ))
             .idle_timeout(Duration::from_secs(settings.database.idle_timeout_seconds))
             .connect_with(options)
             .await

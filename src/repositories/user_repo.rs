@@ -3,8 +3,7 @@
 use crate::db::PostgresPool;
 use crate::errors::AppError;
 use crate::models::{
-    DeviceShare, User, UserListQuery, UserRefreshToken, UserRole,
-    UpdateUserRequest,
+    DeviceShare, UpdateUserRequest, User, UserListQuery, UserRefreshToken, UserRole,
 };
 use chrono::{Duration, Utc};
 use uuid::Uuid;
@@ -53,36 +52,31 @@ impl UserRepository {
 
     /// 根据 ID 查找用户
     pub async fn find_by_id(&self, id: Uuid) -> Result<Option<User>, AppError> {
-        let user = sqlx::query_as::<_, User>(
-            "SELECT * FROM users WHERE id = $1",
-        )
-        .bind(id)
-        .fetch_optional(self.pool.pool())
-        .await?;
+        let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
+            .bind(id)
+            .fetch_optional(self.pool.pool())
+            .await?;
 
         Ok(user)
     }
 
     /// 根据邮箱查找用户
     pub async fn find_by_email(&self, email: &str) -> Result<Option<User>, AppError> {
-        let user = sqlx::query_as::<_, User>(
-            "SELECT * FROM users WHERE LOWER(email) = LOWER($1)",
-        )
-        .bind(email)
-        .fetch_optional(self.pool.pool())
-        .await?;
+        let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE LOWER(email) = LOWER($1)")
+            .bind(email)
+            .fetch_optional(self.pool.pool())
+            .await?;
 
         Ok(user)
     }
 
     /// 根据用户名查找用户
     pub async fn find_by_username(&self, username: &str) -> Result<Option<User>, AppError> {
-        let user = sqlx::query_as::<_, User>(
-            "SELECT * FROM users WHERE LOWER(username) = LOWER($1)",
-        )
-        .bind(username)
-        .fetch_optional(self.pool.pool())
-        .await?;
+        let user =
+            sqlx::query_as::<_, User>("SELECT * FROM users WHERE LOWER(username) = LOWER($1)")
+                .bind(username)
+                .fetch_optional(self.pool.pool())
+                .await?;
 
         Ok(user)
     }
@@ -101,34 +95,28 @@ impl UserRepository {
 
     /// 检查邮箱是否已存在
     pub async fn email_exists(&self, email: &str) -> Result<bool, AppError> {
-        let result: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM users WHERE LOWER(email) = LOWER($1)",
-        )
-        .bind(email)
-        .fetch_one(self.pool.pool())
-        .await?;
+        let result: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM users WHERE LOWER(email) = LOWER($1)")
+                .bind(email)
+                .fetch_one(self.pool.pool())
+                .await?;
 
         Ok(result.0 > 0)
     }
 
     /// 检查用户名是否已存在
     pub async fn username_exists(&self, username: &str) -> Result<bool, AppError> {
-        let result: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM users WHERE LOWER(username) = LOWER($1)",
-        )
-        .bind(username)
-        .fetch_one(self.pool.pool())
-        .await?;
+        let result: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM users WHERE LOWER(username) = LOWER($1)")
+                .bind(username)
+                .fetch_one(self.pool.pool())
+                .await?;
 
         Ok(result.0 > 0)
     }
 
     /// 更新用户信息
-    pub async fn update(
-        &self,
-        id: Uuid,
-        request: &UpdateUserRequest,
-    ) -> Result<User, AppError> {
+    pub async fn update(&self, id: Uuid, request: &UpdateUserRequest) -> Result<User, AppError> {
         let user = sqlx::query_as::<_, User>(
             r#"
             UPDATE users
@@ -149,18 +137,12 @@ impl UserRepository {
     }
 
     /// 更新密码
-    pub async fn update_password(
-        &self,
-        id: Uuid,
-        password_hash: &str,
-    ) -> Result<(), AppError> {
-        sqlx::query(
-            "UPDATE users SET password_hash = $2, updated_at = NOW() WHERE id = $1",
-        )
-        .bind(id)
-        .bind(password_hash)
-        .execute(self.pool.pool())
-        .await?;
+    pub async fn update_password(&self, id: Uuid, password_hash: &str) -> Result<(), AppError> {
+        sqlx::query("UPDATE users SET password_hash = $2, updated_at = NOW() WHERE id = $1")
+            .bind(id)
+            .bind(password_hash)
+            .execute(self.pool.pool())
+            .await?;
 
         Ok(())
     }
@@ -202,13 +184,13 @@ impl UserRepository {
     /// 检查用户是否被锁定
     pub async fn is_locked(&self, id: Uuid) -> Result<bool, AppError> {
         let user = self.find_by_id(id).await?;
-        
+
         if let Some(user) = user {
             if let Some(locked_until) = user.locked_until {
                 return Ok(locked_until > Utc::now());
             }
         }
-        
+
         Ok(false)
     }
 
@@ -239,13 +221,11 @@ impl UserRepository {
 
     /// 禁用/启用用户
     pub async fn set_active(&self, id: Uuid, is_active: bool) -> Result<(), AppError> {
-        sqlx::query(
-            "UPDATE users SET is_active = $2, updated_at = NOW() WHERE id = $1",
-        )
-        .bind(id)
-        .bind(is_active)
-        .execute(self.pool.pool())
-        .await?;
+        sqlx::query("UPDATE users SET is_active = $2, updated_at = NOW() WHERE id = $1")
+            .bind(id)
+            .bind(is_active)
+            .execute(self.pool.pool())
+            .await?;
 
         Ok(())
     }
@@ -273,7 +253,7 @@ impl UserRepository {
                 let total: (i64,) = sqlx::query_as(
                     r#"SELECT COUNT(*) FROM users 
                        WHERE role = $1 AND is_active = $2 
-                       AND (LOWER(email) LIKE LOWER($3) OR LOWER(username) LIKE LOWER($3))"#
+                       AND (LOWER(email) LIKE LOWER($3) OR LOWER(username) LIKE LOWER($3))"#,
                 )
                 .bind(role)
                 .bind(is_active)
@@ -285,7 +265,7 @@ impl UserRepository {
                     r#"SELECT * FROM users 
                        WHERE role = $1 AND is_active = $2 
                        AND (LOWER(email) LIKE LOWER($3) OR LOWER(username) LIKE LOWER($3))
-                       ORDER BY created_at DESC LIMIT $4 OFFSET $5"#
+                       ORDER BY created_at DESC LIMIT $4 OFFSET $5"#,
                 )
                 .bind(role)
                 .bind(is_active)
@@ -299,13 +279,12 @@ impl UserRepository {
             }
             // 有角色 + 有状态
             (Some(role), Some(is_active), None) => {
-                let total: (i64,) = sqlx::query_as(
-                    "SELECT COUNT(*) FROM users WHERE role = $1 AND is_active = $2"
-                )
-                .bind(role)
-                .bind(is_active)
-                .fetch_one(self.pool.pool())
-                .await?;
+                let total: (i64,) =
+                    sqlx::query_as("SELECT COUNT(*) FROM users WHERE role = $1 AND is_active = $2")
+                        .bind(role)
+                        .bind(is_active)
+                        .fetch_one(self.pool.pool())
+                        .await?;
 
                 let users = sqlx::query_as::<_, User>(
                     "SELECT * FROM users WHERE role = $1 AND is_active = $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4"
@@ -325,7 +304,7 @@ impl UserRepository {
                 let total: (i64,) = sqlx::query_as(
                     r#"SELECT COUNT(*) FROM users 
                        WHERE role = $1 
-                       AND (LOWER(email) LIKE LOWER($2) OR LOWER(username) LIKE LOWER($2))"#
+                       AND (LOWER(email) LIKE LOWER($2) OR LOWER(username) LIKE LOWER($2))"#,
                 )
                 .bind(role)
                 .bind(&search_pattern)
@@ -336,7 +315,7 @@ impl UserRepository {
                     r#"SELECT * FROM users 
                        WHERE role = $1 
                        AND (LOWER(email) LIKE LOWER($2) OR LOWER(username) LIKE LOWER($2))
-                       ORDER BY created_at DESC LIMIT $3 OFFSET $4"#
+                       ORDER BY created_at DESC LIMIT $3 OFFSET $4"#,
                 )
                 .bind(role)
                 .bind(&search_pattern)
@@ -353,7 +332,7 @@ impl UserRepository {
                 let total: (i64,) = sqlx::query_as(
                     r#"SELECT COUNT(*) FROM users 
                        WHERE is_active = $1 
-                       AND (LOWER(email) LIKE LOWER($2) OR LOWER(username) LIKE LOWER($2))"#
+                       AND (LOWER(email) LIKE LOWER($2) OR LOWER(username) LIKE LOWER($2))"#,
                 )
                 .bind(is_active)
                 .bind(&search_pattern)
@@ -364,7 +343,7 @@ impl UserRepository {
                     r#"SELECT * FROM users 
                        WHERE is_active = $1 
                        AND (LOWER(email) LIKE LOWER($2) OR LOWER(username) LIKE LOWER($2))
-                       ORDER BY created_at DESC LIMIT $3 OFFSET $4"#
+                       ORDER BY created_at DESC LIMIT $3 OFFSET $4"#,
                 )
                 .bind(is_active)
                 .bind(&search_pattern)
@@ -377,12 +356,10 @@ impl UserRepository {
             }
             // 只有角色
             (Some(role), None, None) => {
-                let total: (i64,) = sqlx::query_as(
-                    "SELECT COUNT(*) FROM users WHERE role = $1"
-                )
-                .bind(role)
-                .fetch_one(self.pool.pool())
-                .await?;
+                let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users WHERE role = $1")
+                    .bind(role)
+                    .fetch_one(self.pool.pool())
+                    .await?;
 
                 let users = sqlx::query_as::<_, User>(
                     "SELECT * FROM users WHERE role = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3"
@@ -397,12 +374,11 @@ impl UserRepository {
             }
             // 只有状态
             (None, Some(is_active), None) => {
-                let total: (i64,) = sqlx::query_as(
-                    "SELECT COUNT(*) FROM users WHERE is_active = $1"
-                )
-                .bind(is_active)
-                .fetch_one(self.pool.pool())
-                .await?;
+                let total: (i64,) =
+                    sqlx::query_as("SELECT COUNT(*) FROM users WHERE is_active = $1")
+                        .bind(is_active)
+                        .fetch_one(self.pool.pool())
+                        .await?;
 
                 let users = sqlx::query_as::<_, User>(
                     "SELECT * FROM users WHERE is_active = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3"
@@ -420,7 +396,7 @@ impl UserRepository {
                 let search_pattern = format!("%{}%", search);
                 let total: (i64,) = sqlx::query_as(
                     r#"SELECT COUNT(*) FROM users 
-                       WHERE LOWER(email) LIKE LOWER($1) OR LOWER(username) LIKE LOWER($1)"#
+                       WHERE LOWER(email) LIKE LOWER($1) OR LOWER(username) LIKE LOWER($1)"#,
                 )
                 .bind(&search_pattern)
                 .fetch_one(self.pool.pool())
@@ -429,7 +405,7 @@ impl UserRepository {
                 let users = sqlx::query_as::<_, User>(
                     r#"SELECT * FROM users 
                        WHERE LOWER(email) LIKE LOWER($1) OR LOWER(username) LIKE LOWER($1)
-                       ORDER BY created_at DESC LIMIT $2 OFFSET $3"#
+                       ORDER BY created_at DESC LIMIT $2 OFFSET $3"#,
                 )
                 .bind(&search_pattern)
                 .bind(query.page_size)
@@ -446,7 +422,7 @@ impl UserRepository {
                     .await?;
 
                 let users = sqlx::query_as::<_, User>(
-                    "SELECT * FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2"
+                    "SELECT * FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2",
                 )
                 .bind(query.page_size)
                 .bind(offset)

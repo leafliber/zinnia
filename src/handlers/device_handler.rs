@@ -23,10 +23,13 @@ pub async fn create_device(
         .map_err(|e| AppError::ValidationError(e.to_string()))?;
 
     // 强制要求用户认证，设备必须绑定到用户
-    let owner_id = auth.user_id
+    let owner_id = auth
+        .user_id
         .ok_or_else(|| AppError::Unauthorized("创建设备需要用户认证".to_string()))?;
-    
-    let response = device_service.register(body.into_inner(), Some(owner_id)).await?;
+
+    let response = device_service
+        .register(body.into_inner(), Some(owner_id))
+        .await?;
 
     // 返回 201 Created
     Ok(HttpResponse::Created().json(ApiResponse::created(response)))
@@ -128,8 +131,10 @@ pub async fn rotate_device_api_key(
 
     let new_api_key = device_service.rotate_api_key(device_id).await?;
 
-    Ok(HttpResponse::Ok().json(ApiResponse::success(serde_json::json!({
-        "api_key": new_api_key,
-        "message": "API Key 已更新，请妥善保管新的 API Key"
-    }))))
+    Ok(
+        HttpResponse::Ok().json(ApiResponse::success(serde_json::json!({
+            "api_key": new_api_key,
+            "message": "API Key 已更新，请妥善保管新的 API Key"
+        }))),
+    )
 }

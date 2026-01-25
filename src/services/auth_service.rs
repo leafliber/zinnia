@@ -1,7 +1,7 @@
 //! 认证服务
 
 use crate::errors::AppError;
-use crate::security::{JwtManager, TokenPair, Claims};
+use crate::security::{Claims, JwtManager, TokenPair};
 use crate::services::{CacheService, DeviceService};
 use std::sync::Arc;
 
@@ -37,10 +37,9 @@ impl AuthService {
             Some("device".to_string()),
         )?;
 
-        let refresh_token = self.jwt_manager.generate_refresh_token(
-            &device.id.to_string(),
-            Some(device.id),
-        )?;
+        let refresh_token = self
+            .jwt_manager
+            .generate_refresh_token(&device.id.to_string(), Some(device.id))?;
 
         // 从 JWT 管理器获取过期时间
         let expires_in = self.jwt_manager.access_expiry_seconds();
@@ -65,15 +64,16 @@ impl AuthService {
             claims.role.clone(),
         )?;
 
-        let new_refresh_token = self.jwt_manager.generate_refresh_token(
-            &claims.sub,
-            claims.device_id,
-        )?;
+        let new_refresh_token = self
+            .jwt_manager
+            .generate_refresh_token(&claims.sub, claims.device_id)?;
 
         // 将旧的 Refresh Token 加入黑名单
         let remaining_expiry = (claims.exp - chrono::Utc::now().timestamp()) as u64;
         if remaining_expiry > 0 {
-            self.cache_service.blacklist_token(&claims.jti, remaining_expiry).await?;
+            self.cache_service
+                .blacklist_token(&claims.jti, remaining_expiry)
+                .await?;
         }
 
         // 从 JWT 管理器获取过期时间
@@ -97,7 +97,9 @@ impl AuthService {
         };
 
         // 加入黑名单
-        self.cache_service.blacklist_token(&claims.jti, remaining_expiry).await?;
+        self.cache_service
+            .blacklist_token(&claims.jti, remaining_expiry)
+            .await?;
 
         tracing::info!(
             jti = %claims.jti,

@@ -3,8 +3,8 @@
 use crate::db::PostgresPool;
 use crate::errors::AppError;
 use crate::models::{
-    NotificationChannel, NotificationHistory, SubscribeWebPushRequest, UpdateNotificationPreferenceRequest,
-    UserNotificationPreference, WebPushSubscription,
+    NotificationChannel, NotificationHistory, SubscribeWebPushRequest,
+    UpdateNotificationPreferenceRequest, UserNotificationPreference, WebPushSubscription,
 };
 use chrono::{NaiveTime, Utc};
 use uuid::Uuid;
@@ -23,7 +23,10 @@ impl NotificationRepository {
     // ========== 用户通知偏好 ==========
 
     /// 获取用户的通知偏好
-    pub async fn get_user_preference(&self, user_id: Uuid) -> Result<Option<UserNotificationPreference>, AppError> {
+    pub async fn get_user_preference(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Option<UserNotificationPreference>, AppError> {
         let pref = sqlx::query_as::<_, UserNotificationPreference>(
             "SELECT * FROM user_notification_preferences WHERE user_id = $1",
         )
@@ -47,17 +50,21 @@ impl NotificationRepository {
             .quiet_hours_start
             .as_ref()
             .and_then(|s| NaiveTime::parse_from_str(s, "%H:%M").ok());
-        
+
         let quiet_end = request
             .quiet_hours_end
             .as_ref()
             .and_then(|s| NaiveTime::parse_from_str(s, "%H:%M").ok());
 
         // 序列化配置为 JSONB
-        let email_config = request.email_config.as_ref()
+        let email_config = request
+            .email_config
+            .as_ref()
             .and_then(|c| serde_json::to_value(c).ok());
-        
-        let webhook_config = request.webhook_config.as_ref()
+
+        let webhook_config = request
+            .webhook_config
+            .as_ref()
             .and_then(|c| serde_json::to_value(c).ok());
 
         let pref = sqlx::query_as::<_, UserNotificationPreference>(
@@ -197,12 +204,11 @@ impl NotificationRepository {
         .fetch_all(self.pool.pool())
         .await?;
 
-        let total: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM notification_history WHERE user_id = $1",
-        )
-        .bind(user_id)
-        .fetch_one(self.pool.pool())
-        .await?;
+        let total: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM notification_history WHERE user_id = $1")
+                .bind(user_id)
+                .fetch_one(self.pool.pool())
+                .await?;
 
         Ok((histories, total.0))
     }
@@ -297,13 +303,12 @@ impl NotificationRepository {
         user_id: Uuid,
         subscription_id: Uuid,
     ) -> Result<(), AppError> {
-        let result = sqlx::query(
-            "DELETE FROM web_push_subscriptions WHERE id = $1 AND user_id = $2",
-        )
-        .bind(subscription_id)
-        .bind(user_id)
-        .execute(self.pool.pool())
-        .await?;
+        let result =
+            sqlx::query("DELETE FROM web_push_subscriptions WHERE id = $1 AND user_id = $2")
+                .bind(subscription_id)
+                .bind(user_id)
+                .execute(self.pool.pool())
+                .await?;
 
         if result.rows_affected() == 0 {
             return Err(AppError::NotFound(format!(
@@ -340,13 +345,11 @@ impl NotificationRepository {
         &self,
         subscription_id: Uuid,
     ) -> Result<(), AppError> {
-        sqlx::query(
-            "UPDATE web_push_subscriptions SET last_used_at = $2 WHERE id = $1",
-        )
-        .bind(subscription_id)
-        .bind(Utc::now())
-        .execute(self.pool.pool())
-        .await?;
+        sqlx::query("UPDATE web_push_subscriptions SET last_used_at = $2 WHERE id = $1")
+            .bind(subscription_id)
+            .bind(Utc::now())
+            .execute(self.pool.pool())
+            .await?;
 
         Ok(())
     }

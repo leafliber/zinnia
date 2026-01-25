@@ -4,7 +4,7 @@
 
 use crate::errors::AppError;
 use crate::models::{
-    ApiResponse, SendVerificationCodeRequest, VerifyCodeRequest, VerificationCodeResponse,
+    ApiResponse, SendVerificationCodeRequest, VerificationCodeResponse, VerifyCodeRequest,
 };
 use crate::services::{
     RecaptchaService, RegistrationSecurityService, VerificationCodeType, VerificationService,
@@ -39,17 +39,20 @@ fn get_client_ip(req: &HttpRequest) -> Option<String> {
     // 尝试从 X-Forwarded-For 获取
     if let Some(forwarded) = req.headers().get("X-Forwarded-For") {
         if let Ok(forwarded_str) = forwarded.to_str() {
-            return forwarded_str.split(',').next().map(|s| s.trim().to_string());
+            return forwarded_str
+                .split(',')
+                .next()
+                .map(|s| s.trim().to_string());
         }
     }
-    
+
     // 尝试从 X-Real-IP 获取
     if let Some(real_ip) = req.headers().get("X-Real-IP") {
         if let Ok(ip) = real_ip.to_str() {
             return Some(ip.to_string());
         }
     }
-    
+
     // 从连接信息获取
     req.peer_addr().map(|addr| addr.ip().to_string())
 }
@@ -63,7 +66,7 @@ pub async fn get_recaptcha_config(
         enabled: recaptcha_service.is_enabled(),
         site_key: recaptcha_service.get_site_key().map(String::from),
     };
-    
+
     Ok(HttpResponse::Ok().json(ApiResponse::success(response)))
 }
 
@@ -78,7 +81,7 @@ pub async fn get_registration_security_config(
         require_recaptcha: reg_security.require_recaptcha() && recaptcha_service.is_enabled(),
         recaptcha_site_key: recaptcha_service.get_site_key().map(String::from),
     };
-    
+
     Ok(HttpResponse::Ok().json(ApiResponse::success(response)))
 }
 
@@ -96,23 +99,27 @@ pub async fn send_verification_code(
         .map_err(|e| AppError::ValidationError(e.to_string()))?;
 
     let client_ip = get_client_ip(&req);
-    
+
     // 检查 IP 限制
     if let Some(ref ip) = client_ip {
         let check = reg_security.check_ip(ip).await?;
         if !check.allowed {
             return Err(AppError::RateLimitExceeded(
-                check.reason.unwrap_or_else(|| "请求过于频繁".to_string())
+                check.reason.unwrap_or_else(|| "请求过于频繁".to_string()),
             ));
         }
     }
 
     // 验证 reCAPTCHA（如果启用）
     if reg_security.require_recaptcha() && recaptcha_service.is_enabled() {
-        let token = body.recaptcha_token.as_deref()
+        let token = body
+            .recaptcha_token
+            .as_deref()
             .ok_or_else(|| AppError::ValidationError("请完成人机验证".to_string()))?;
-        
-        recaptcha_service.verify(token, client_ip.as_deref()).await?;
+
+        recaptcha_service
+            .verify(token, client_ip.as_deref())
+            .await?;
     }
 
     // 发送验证码
@@ -141,7 +148,11 @@ pub async fn verify_code(
     // 这里只是检查验证码是否正确，但不消耗它
     // 实际的消耗会在注册时进行
     verification_service
-        .verify_code(&body.email, &body.code, VerificationCodeType::EmailVerification)
+        .verify_code(
+            &body.email,
+            &body.code,
+            VerificationCodeType::EmailVerification,
+        )
         .await?;
 
     Ok(HttpResponse::Ok().json(ApiResponse::<()>::success_message("验证码正确")))
@@ -164,7 +175,9 @@ pub async fn send_password_reset_code(
     // 验证 reCAPTCHA（如果提供）
     if let Some(ref token) = body.recaptcha_token {
         if recaptcha_service.is_enabled() {
-            recaptcha_service.verify(token, client_ip.as_deref()).await?;
+            recaptcha_service
+                .verify(token, client_ip.as_deref())
+                .await?;
         }
     }
 
@@ -186,13 +199,13 @@ pub async fn send_password_reset_code(
 pub struct PasswordResetRequest {
     #[validate(email(message = "邮箱格式无效"))]
     pub email: String,
-    
+
     #[validate(length(equal = 6, message = "验证码应为6位数字"))]
     pub code: String,
-    
+
     #[validate(length(min = 8, max = 128, message = "密码长度应在 8-128 字符之间"))]
     pub new_password: String,
-    
+
     #[validate(length(min = 8, max = 128, message = "密码长度应在 8-128 字符之间"))]
     pub confirm_password: String,
 }
@@ -210,7 +223,9 @@ pub async fn confirm_password_reset(
 
     // 检查密码是否一致
     if body.new_password != body.confirm_password {
-        return Err(AppError::ValidationError("两次输入的密码不一致".to_string()));
+        return Err(AppError::ValidationError(
+            "两次输入的密码不一致".to_string(),
+        ));
     }
 
     // 验证验证码
@@ -223,5 +238,7 @@ pub async fn confirm_password_reset(
         .reset_password_by_email(&body.email, &body.new_password)
         .await?;
 
-    Ok(HttpResponse::Ok().json(ApiResponse::<()>::success_message("密码已重置，请使用新密码登录")))
+    Ok(HttpResponse::Ok().json(ApiResponse::<()>::success_message(
+        "密码已重置，请使用新密码登录",
+    )))
 }

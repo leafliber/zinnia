@@ -96,8 +96,8 @@ where
         req.extensions_mut().insert(RequestId(request_id.clone()));
 
         // 脱敏处理：不记录敏感头
-        let has_auth = req.headers().contains_key("Authorization")
-            || req.headers().contains_key("X-API-Key");
+        let has_auth =
+            req.headers().contains_key("Authorization") || req.headers().contains_key("X-API-Key");
 
         Box::pin(async move {
             // 记录请求开始
@@ -120,7 +120,7 @@ where
             match &result {
                 Ok(res) => {
                     let status = res.status().as_u16();
-                    
+
                     if status >= 400 {
                         warn!(
                             request_id = %request_id,

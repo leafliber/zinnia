@@ -3,8 +3,8 @@
 use crate::errors::AppError;
 use crate::middleware::AuthInfo;
 use crate::models::{
-    ApiResponse, BatchBatteryReportRequest, BatteryAggregateRequest,
-    BatteryQueryRequest, BatteryReportRequest,
+    ApiResponse, BatchBatteryReportRequest, BatteryAggregateRequest, BatteryQueryRequest,
+    BatteryReportRequest,
 };
 use crate::repositories::DeviceRepository;
 use crate::services::BatteryService;
@@ -66,9 +66,11 @@ pub async fn batch_report_battery(
         .batch_report(device_id, body.into_inner().data)
         .await?;
 
-    Ok(HttpResponse::Ok().json(ApiResponse::success(serde_json::json!({
-        "inserted_count": count
-    }))))
+    Ok(
+        HttpResponse::Ok().json(ApiResponse::success(serde_json::json!({
+            "inserted_count": count
+        }))),
+    )
 }
 
 /// 获取最新电量
@@ -159,7 +161,7 @@ pub async fn get_battery_stats(
 }
 
 /// 验证设备访问权限
-/// 
+///
 /// 检查顺序：
 /// 1. 管理员 → 允许访问所有设备
 /// 2. 设备 → 只能访问自己的数据

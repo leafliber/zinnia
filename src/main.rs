@@ -12,13 +12,16 @@ use zinnia::{
     config::Settings,
     db::{PostgresPool, RedisPool},
     middleware::{JwtAuth, JwtOrApiKeyAuth, RequestLogger, RequestValidator, SecurityHeaders},
-    repositories::{AlertRepository, BatteryRepository, DeviceAccessTokenRepository, DeviceRepository, NotificationRepository, UserRepository},
+    repositories::{
+        AlertRepository, BatteryRepository, DeviceAccessTokenRepository, DeviceRepository,
+        NotificationRepository, UserRepository,
+    },
     routes,
     security::{JwtManager, Secrets},
     services::{
-        AlertService, AuthService, BatteryService, CacheService, DeviceAccessTokenService, 
-        DeviceService, EmailService, NotificationService, RecaptchaService, RegistrationSecurityService, 
-        UserService, VerificationService, WebPushService,
+        AlertService, AuthService, BatteryService, CacheService, DeviceAccessTokenService,
+        DeviceService, EmailService, NotificationService, RecaptchaService,
+        RegistrationSecurityService, UserService, VerificationService, WebPushService,
     },
     websocket,
 };
@@ -45,7 +48,7 @@ async fn main() -> std::io::Result<()> {
 
     // 初始化密钥
     match Secrets::init() {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(e) => {
             eprintln!("❌ 密钥初始化失败: {}", e);
             std::process::exit(1);
@@ -54,27 +57,23 @@ async fn main() -> std::io::Result<()> {
     info!("✅ 密钥初始化完成");
 
     // 连接数据库
-    let pg_pool = Arc::new(
-        match PostgresPool::new(&settings).await {
-            Ok(p) => p,
-            Err(e) => {
-                eprintln!("❌ 数据库连接失败: {}", e);
-                std::process::exit(1);
-            }
-        },
-    );
+    let pg_pool = Arc::new(match PostgresPool::new(&settings).await {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("❌ 数据库连接失败: {}", e);
+            std::process::exit(1);
+        }
+    });
     info!("✅ 数据库连接成功");
 
     // 连接 Redis
-    let redis_pool = Arc::new(
-        match RedisPool::new(&settings).await {
-            Ok(r) => r,
-            Err(e) => {
-                eprintln!("❌ Redis 连接失败: {}", e);
-                std::process::exit(1);
-            }
-        },
-    );
+    let redis_pool = Arc::new(match RedisPool::new(&settings).await {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("❌ Redis 连接失败: {}", e);
+            std::process::exit(1);
+        }
+    });
     info!("✅ Redis 连接成功");
 
     // 初始化 JWT 管理器
@@ -97,8 +96,11 @@ async fn main() -> std::io::Result<()> {
     // 初始化服务
     let cache_service = Arc::new(CacheService::new(redis_pool.clone()));
     let mut alert_service = AlertService::new(alert_repo);
-    let device_service = Arc::new(DeviceService::new((*device_repo).clone(), redis_pool.clone()));
-    
+    let device_service = Arc::new(DeviceService::new(
+        (*device_repo).clone(),
+        redis_pool.clone(),
+    ));
+
     let user_service = Arc::new(UserService::new(
         user_repo,
         jwt_manager.clone(),
@@ -116,15 +118,13 @@ async fn main() -> std::io::Result<()> {
     ));
 
     // 初始化注册安全服务
-    let email_service = Arc::new(
-        match EmailService::new(&settings, redis_pool.clone()) {
-            Ok(e) => e,
-            Err(err) => {
-                eprintln!("❌ 邮件服务初始化失败: {}", err);
-                std::process::exit(1);
-            }
+    let email_service = Arc::new(match EmailService::new(&settings, redis_pool.clone()) {
+        Ok(e) => e,
+        Err(err) => {
+            eprintln!("❌ 邮件服务初始化失败: {}", err);
+            std::process::exit(1);
         }
-    );
+    });
     let verification_service = Arc::new(VerificationService::new(
         redis_pool.clone(),
         email_service.clone(),
@@ -193,7 +193,12 @@ async fn main() -> std::io::Result<()> {
                     || origin.as_bytes().starts_with(b"https://")
             })
             .allowed_methods(vec!["GET", "POST", "PUT", "PATCH", "DELETE"])
-            .allowed_headers(vec!["Authorization", "Content-Type", "X-API-Key", "X-Request-ID"])
+            .allowed_headers(vec![
+                "Authorization",
+                "Content-Type",
+                "X-API-Key",
+                "X-Request-ID",
+            ])
             .expose_headers(vec!["Set-Cookie"])
             .allow_any_header()
             .supports_credentials() // 允许携带凭证（cookie）

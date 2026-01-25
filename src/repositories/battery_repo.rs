@@ -108,7 +108,8 @@ impl BatteryRepository {
         request: &BatteryQueryRequest,
     ) -> Result<Vec<BatteryData>, AppError> {
         // 验证时间范围
-        request.validate_time_range()
+        request
+            .validate_time_range()
             .map_err(AppError::ValidationError)?;
 
         let data = sqlx::query_as::<_, BatteryData>(
@@ -157,9 +158,8 @@ impl BatteryRepository {
     ) -> Result<Vec<BatteryAggregatePoint>, AppError> {
         let interval_str = interval.to_timescaledb_interval();
 
-        let data = sqlx::query_as::<_, BatteryAggregatePoint>(
-            &format!(
-                r#"
+        let data = sqlx::query_as::<_, BatteryAggregatePoint>(&format!(
+            r#"
                 SELECT 
                     time_bucket('{}', recorded_at) AS bucket,
                     AVG(battery_level)::float8 AS avg_level,
@@ -171,9 +171,8 @@ impl BatteryRepository {
                 GROUP BY bucket
                 ORDER BY bucket DESC
                 "#,
-                interval_str
-            ),
-        )
+            interval_str
+        ))
         .bind(device_id)
         .bind(start_time)
         .bind(end_time)

@@ -123,10 +123,7 @@ where
             .get("User-Agent")
             .and_then(|h| h.to_str().ok())
             .map(|s| s.to_string());
-        let request_id = req
-            .extensions()
-            .get::<RequestId>()
-            .map(|r| r.0.clone());
+        let request_id = req.extensions().get::<RequestId>().map(|r| r.0.clone());
         let auth_info = req.extensions().get::<AuthInfo>().cloned();
 
         Box::pin(async move {

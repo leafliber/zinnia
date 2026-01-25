@@ -2,7 +2,7 @@
 
 use crate::db::RedisPool;
 use crate::errors::AppError;
-use crate::security::{JwtManager, mask_token};
+use crate::security::{mask_token, JwtManager};
 
 use actix_web::{
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
@@ -34,12 +34,15 @@ impl AuthInfo {
     pub fn is_admin(&self) -> bool {
         self.role.as_deref() == Some("admin")
     }
-    
+
     /// 检查是否是用户（包括管理员）
     pub fn is_user(&self) -> bool {
-        matches!(self.role.as_deref(), Some("admin") | Some("user") | Some("readonly"))
+        matches!(
+            self.role.as_deref(),
+            Some("admin") | Some("user") | Some("readonly")
+        )
     }
-    
+
     /// 检查是否是设备
     pub fn is_device(&self) -> bool {
         self.role.as_deref() == Some("device")
@@ -61,7 +64,10 @@ pub struct JwtAuth {
 
 impl JwtAuth {
     pub fn new(jwt_manager: Arc<JwtManager>, redis_pool: Arc<RedisPool>) -> Self {
-        Self { jwt_manager, redis_pool }
+        Self {
+            jwt_manager,
+            redis_pool,
+        }
     }
 }
 
@@ -111,19 +117,25 @@ where
 
         Box::pin(async move {
             // 从多个来源提取 token：优先 header，其次 cookie
-            let token = if let Some(auth_header) = req.headers().get(AUTHORIZATION).and_then(|h| h.to_str().ok()) {
+            let token = if let Some(auth_header) = req
+                .headers()
+                .get(AUTHORIZATION)
+                .and_then(|h| h.to_str().ok())
+            {
                 if let Some(t) = auth_header.strip_prefix("Bearer ") {
                     t.to_owned()
                 } else {
                     return Err(AppError::Unauthorized("缺少认证令牌".to_string()).into());
                 }
-            } else if let Some(cookie_header) = req.headers().get("Cookie").and_then(|h| h.to_str().ok()) {
+            } else if let Some(cookie_header) =
+                req.headers().get("Cookie").and_then(|h| h.to_str().ok())
+            {
                 // 手动解析 cookie（避免类型转换问题）
                 let mut token_result = None;
                 for pair in cookie_header.split(';') {
                     let pair = pair.trim();
                     if pair.starts_with("access_token=") {
-                        token_result = Some(pair[(12)..].to_string());
+                        token_result = Some(pair[12..].to_string());
                         break;
                     }
                 }
@@ -220,10 +232,7 @@ where
 
         Box::pin(async move {
             // 提取 X-API-Key 头
-            let api_key = req
-                .headers()
-                .get("X-API-Key")
-                .and_then(|h| h.to_str().ok());
+            let api_key = req.headers().get("X-API-Key").and_then(|h| h.to_str().ok());
 
             let key = match api_key {
                 Some(k) => k,
@@ -333,15 +342,21 @@ where
 
         Box::pin(async move {
             // 提取 token：优先 header，其次 cookie
-            let jwt_token = if let Some(auth_header) = req.headers().get(AUTHORIZATION).and_then(|h| h.to_str().ok()) {
+            let jwt_token = if let Some(auth_header) = req
+                .headers()
+                .get(AUTHORIZATION)
+                .and_then(|h| h.to_str().ok())
+            {
                 auth_header.strip_prefix("Bearer ").map(|t| t.to_owned())
-            } else if let Some(cookie_header) = req.headers().get("Cookie").and_then(|h| h.to_str().ok()) {
+            } else if let Some(cookie_header) =
+                req.headers().get("Cookie").and_then(|h| h.to_str().ok())
+            {
                 // 手动解析 cookie
                 let mut token_result = None;
                 for pair in cookie_header.split(';') {
                     let pair = pair.trim();
                     if pair.starts_with("access_token=") {
-                        token_result = Some(pair[(12)..].to_string());
+                        token_result = Some(pair[12..].to_string());
                         break;
                     }
                 }
@@ -379,11 +394,11 @@ where
                     }
                 }
             }
-            
+
             // 尝试 API Key 认证
             if let Some(api_key) = req.headers().get("X-API-Key").and_then(|h| h.to_str().ok()) {
                 tracing::debug!(api_key = %mask_token(api_key), "尝试 API Key 认证");
-                
+
                 // 验证 API Key
                 if let Ok(device) = device_service.verify_by_api_key(api_key).await {
                     let auth_info = AuthInfo {
@@ -397,7 +412,7 @@ where
                     return service.call(req).await;
                 }
             }
-            
+
             // 两种认证都失败
             Err(AppError::Unauthorized("需要 JWT 令牌或 API Key 认证".to_string()).into())
         })

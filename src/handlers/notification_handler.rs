@@ -3,7 +3,7 @@
 use crate::errors::AppError;
 use crate::middleware::AuthInfo;
 use crate::models::{
-    ApiResponse, NotificationPreferenceResponse, SubscribeWebPushRequest, 
+    ApiResponse, NotificationPreferenceResponse, SubscribeWebPushRequest,
     UpdateNotificationPreferenceRequest, WebPushSubscriptionResponse,
 };
 use crate::services::{NotificationService, WebPushService};
@@ -21,7 +21,7 @@ pub async fn get_notification_preference(
         .get::<AuthInfo>()
         .cloned()
         .ok_or_else(|| AppError::Unauthorized("未认证".to_string()))?;
-    
+
     let user_id = auth_info
         .user_id
         .ok_or_else(|| AppError::Forbidden("仅限用户可访问".to_string()))?;
@@ -51,7 +51,7 @@ pub async fn update_notification_preference(
         .get::<AuthInfo>()
         .cloned()
         .ok_or_else(|| AppError::Unauthorized("未认证".to_string()))?;
-    
+
     let user_id = auth_info
         .user_id
         .ok_or_else(|| AppError::Forbidden("仅限用户可访问".to_string()))?;
@@ -78,9 +78,11 @@ pub async fn get_vapid_public_key(
 
     let public_key = service.get_vapid_public_key();
 
-    Ok(HttpResponse::Ok().json(ApiResponse::success(serde_json::json!({
-        "public_key": public_key
-    }))))
+    Ok(
+        HttpResponse::Ok().json(ApiResponse::success(serde_json::json!({
+            "public_key": public_key
+        }))),
+    )
 }
 
 /// 订阅 Web Push
@@ -98,7 +100,7 @@ pub async fn subscribe_web_push(
         .get::<AuthInfo>()
         .cloned()
         .ok_or_else(|| AppError::Unauthorized("未认证".to_string()))?;
-    
+
     let user_id = auth_info
         .user_id
         .ok_or_else(|| AppError::Forbidden("仅限用户可访问".to_string()))?;
@@ -135,7 +137,7 @@ pub async fn list_web_push_subscriptions(
         .get::<AuthInfo>()
         .cloned()
         .ok_or_else(|| AppError::Unauthorized("未认证".to_string()))?;
-    
+
     let user_id = auth_info
         .user_id
         .ok_or_else(|| AppError::Forbidden("仅限用户可访问".to_string()))?;
@@ -171,7 +173,7 @@ pub async fn unsubscribe_web_push(
         .get::<AuthInfo>()
         .cloned()
         .ok_or_else(|| AppError::Unauthorized("未认证".to_string()))?;
-    
+
     let user_id = auth_info
         .user_id
         .ok_or_else(|| AppError::Forbidden("仅限用户可访问".to_string()))?;
@@ -180,7 +182,9 @@ pub async fn unsubscribe_web_push(
         .delete_web_push_subscription(user_id, subscription_id)
         .await?;
 
-    Ok(HttpResponse::Ok().json(ApiResponse::success(serde_json::json!({
-        "message": "订阅已删除"
-    }))))
+    Ok(
+        HttpResponse::Ok().json(ApiResponse::success(serde_json::json!({
+            "message": "订阅已删除"
+        }))),
+    )
 }

@@ -16,16 +16,14 @@ impl RedisPool {
     /// 创建新的 Redis 连接
     pub async fn new(_settings: &Settings) -> Result<Self, AppError> {
         let redis_url = Settings::redis_url();
-        
+
         let client = Client::open(redis_url.expose_secret().as_str())
             .map_err(|e| AppError::ConfigError(format!("Redis URL 无效: {}", e)))?;
 
-        let manager = ConnectionManager::new(client)
-            .await
-            .map_err(|e| {
-                tracing::error!("Redis 连接失败: {}", e);
-                AppError::RedisError(e)
-            })?;
+        let manager = ConnectionManager::new(client).await.map_err(|e| {
+            tracing::error!("Redis 连接失败: {}", e);
+            AppError::RedisError(e)
+        })?;
 
         tracing::info!("Redis 连接已建立");
 
@@ -57,7 +55,7 @@ impl RedisPool {
         let mut conn = self.manager.clone();
         let serialized = serde_json::to_string(value)
             .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
-        
+
         redis::cmd("SETEX")
             .arg(key)
             .arg(expiry_seconds)
@@ -122,14 +120,14 @@ impl RedisPool {
     /// 递增计数器并设置过期时间（如果是新 key）
     pub async fn incr_ex(&self, key: &str, expiry_seconds: u64) -> Result<i64, AppError> {
         let mut conn = self.manager.clone();
-        
+
         // 先递增
         let count: i64 = redis::cmd("INCR")
             .arg(key)
             .query_async(&mut conn)
             .await
             .map_err(AppError::RedisError)?;
-        
+
         // 如果是第一次（count == 1），设置过期时间
         if count == 1 {
             let _: () = redis::cmd("EXPIRE")
@@ -139,7 +137,7 @@ impl RedisPool {
                 .await
                 .map_err(AppError::RedisError)?;
         }
-        
+
         Ok(count)
     }
 }

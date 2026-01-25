@@ -139,5 +139,7 @@ fn is_sensitive_endpoint(path: &str) -> bool {
         "/admin",
     ];
 
-    sensitive_patterns.iter().any(|pattern| path.starts_with(pattern))
+    sensitive_patterns
+        .iter()
+        .any(|pattern| path.starts_with(pattern))
 }

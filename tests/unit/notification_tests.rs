@@ -43,7 +43,10 @@ mod notification_service_tests {
         assert!(should_notify_for_level(&pref, &AlertLevel::Info));
     }
 
-    fn should_notify_for_level(preference: &crate::models::UserNotificationPreference, level: &crate::models::AlertLevel) -> bool {
+    fn should_notify_for_level(
+        preference: &crate::models::UserNotificationPreference,
+        level: &crate::models::AlertLevel,
+    ) -> bool {
         use crate::models::AlertLevel;
         match level {
             AlertLevel::Info => preference.notify_info,
@@ -100,7 +103,10 @@ mod notification_service_tests {
         assert!(result.is_ok());
 
         let req = result.unwrap();
-        assert_eq!(req.subscription.endpoint, "https://fcm.googleapis.com/fcm/send/test");
+        assert_eq!(
+            req.subscription.endpoint,
+            "https://fcm.googleapis.com/fcm/send/test"
+        );
     }
 }
 

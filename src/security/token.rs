@@ -1,10 +1,10 @@
 //! 统一令牌生成工具
-//! 
+//!
 //! 提供设备 API Key 和访问令牌的通用生成逻辑
 
 use crate::errors::AppError;
 use crate::security::{generate_random_bytes, hash_password, verify_password};
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64};
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD as BASE64, Engine as _};
 
 /// 令牌类型
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -74,21 +74,21 @@ pub struct GeneratedToken {
 pub fn generate_token(token_type: TokenType) -> Result<GeneratedToken, AppError> {
     // 生成随机字节
     let random_bytes = generate_random_bytes(token_type.random_bytes_len())?;
-    
+
     // Base64 编码
     let random_part = BASE64.encode(&random_bytes);
-    
+
     // 组合完整令牌
     let prefix = token_type.prefix();
     let token = format!("{}{}", prefix, random_part);
-    
+
     // 哈希存储
     let hash = hash_password(&token)?;
-    
+
     // 生成显示前缀
     let display_len = token_type.display_prefix_len();
     let display_prefix = format!("{}{}...", prefix, &random_part[..display_len]);
-    
+
     Ok(GeneratedToken {
         token,
         hash,
@@ -106,16 +106,16 @@ pub fn verify_token(token: &str, hash: &str) -> Result<bool, AppError> {
 pub fn validate_token_format(token: &str) -> Result<TokenType, AppError> {
     let token_type = TokenType::from_token(token)
         .ok_or_else(|| AppError::ValidationError("无效的令牌格式".to_string()))?;
-    
+
     let prefix_len = token_type.prefix().len();
     let expected_base64_len = (token_type.random_bytes_len() * 4).div_ceil(3); // Base64 编码长度
     let expected_total = prefix_len + expected_base64_len;
-    
+
     // 允许一定的长度偏差（Base64 padding）
     if token.len() < expected_total - 2 || token.len() > expected_total + 2 {
         return Err(AppError::ValidationError("无效的令牌长度".to_string()));
     }
-    
+
     Ok(token_type)
 }
 
@@ -124,12 +124,12 @@ pub fn mask_token(token: &str) -> String {
     if let Some(token_type) = TokenType::from_token(token) {
         let prefix = token_type.prefix();
         let prefix_len = prefix.len();
-        
+
         if token.len() > prefix_len + 4 {
             return format!("{}{}...", prefix, &token[prefix_len..prefix_len + 4]);
         }
     }
-    
+
     if token.len() > 8 {
         format!("{}...", &token[..8])
     } else {
@@ -141,15 +141,15 @@ pub fn mask_token(token: &str) -> String {
 pub fn extract_search_prefix(token: &str) -> Result<String, AppError> {
     let token_type = TokenType::from_token(token)
         .ok_or_else(|| AppError::ValidationError("无效的令牌格式".to_string()))?;
-    
+
     let prefix = token_type.prefix();
     let prefix_len = prefix.len();
     let display_len = token_type.display_prefix_len();
-    
+
     if token.len() < prefix_len + display_len {
         return Err(AppError::ValidationError("令牌过短".to_string()));
     }
-    
+
     let random_part = &token[prefix_len..prefix_len + display_len];
     Ok(format!("{}{}...", prefix, random_part))
 }
@@ -161,7 +161,7 @@ mod tests {
     #[test]
     fn test_generate_device_api_key_live() {
         let result = generate_token(TokenType::DeviceApiKeyLive).unwrap();
-        
+
         assert!(result.token.starts_with("zn_live_"));
         assert!(result.display_prefix.starts_with("zn_live_"));
         assert!(result.display_prefix.ends_with("..."));
@@ -172,7 +172,7 @@ mod tests {
     #[test]
     fn test_generate_device_api_key_test() {
         let result = generate_token(TokenType::DeviceApiKeyTest).unwrap();
-        
+
         assert!(result.token.starts_with("zn_test_"));
         assert_eq!(result.token_type, TokenType::DeviceApiKeyTest);
     }
@@ -180,7 +180,7 @@ mod tests {
     #[test]
     fn test_generate_device_access_token() {
         let result = generate_token(TokenType::DeviceAccessToken).unwrap();
-        
+
         assert!(result.token.starts_with("zn_dat_"));
         assert!(result.display_prefix.starts_with("zn_dat_"));
         assert_eq!(result.token_type, TokenType::DeviceAccessToken);
@@ -189,14 +189,14 @@ mod tests {
     #[test]
     fn test_verify_token_success() {
         let result = generate_token(TokenType::DeviceApiKeyLive).unwrap();
-        
+
         assert!(verify_token(&result.token, &result.hash).unwrap());
     }
 
     #[test]
     fn test_verify_token_failure() {
         let result = generate_token(TokenType::DeviceApiKeyLive).unwrap();
-        
+
         assert!(!verify_token("wrong_token", &result.hash).unwrap());
     }
 
@@ -205,7 +205,7 @@ mod tests {
         let live_key = generate_token(TokenType::DeviceApiKeyLive).unwrap();
         let result = validate_token_format(&live_key.token).unwrap();
         assert_eq!(result, TokenType::DeviceApiKeyLive);
-        
+
         let dat = generate_token(TokenType::DeviceAccessToken).unwrap();
         let result = validate_token_format(&dat.token).unwrap();
         assert_eq!(result, TokenType::DeviceAccessToken);
@@ -219,9 +219,18 @@ mod tests {
 
     #[test]
     fn test_token_type_from_token() {
-        assert_eq!(TokenType::from_token("zn_live_abc"), Some(TokenType::DeviceApiKeyLive));
-        assert_eq!(TokenType::from_token("zn_test_abc"), Some(TokenType::DeviceApiKeyTest));
-        assert_eq!(TokenType::from_token("zn_dat_abc"), Some(TokenType::DeviceAccessToken));
+        assert_eq!(
+            TokenType::from_token("zn_live_abc"),
+            Some(TokenType::DeviceApiKeyLive)
+        );
+        assert_eq!(
+            TokenType::from_token("zn_test_abc"),
+            Some(TokenType::DeviceApiKeyTest)
+        );
+        assert_eq!(
+            TokenType::from_token("zn_dat_abc"),
+            Some(TokenType::DeviceAccessToken)
+        );
         assert_eq!(TokenType::from_token("unknown"), None);
     }
 
@@ -229,7 +238,7 @@ mod tests {
     fn test_mask_token() {
         let token = "zn_live_abcdefghijklmnopqrstuvwxyz";
         let masked = mask_token(token);
-        
+
         assert!(masked.starts_with("zn_live_"));
         assert!(masked.ends_with("..."));
         assert!(!masked.contains("mnop")); // 中间部分被隐藏
@@ -239,7 +248,7 @@ mod tests {
     fn test_extract_search_prefix() {
         let token = generate_token(TokenType::DeviceAccessToken).unwrap();
         let search_prefix = extract_search_prefix(&token.token).unwrap();
-        
+
         assert!(search_prefix.starts_with("zn_dat_"));
         assert!(search_prefix.ends_with("..."));
         assert_eq!(search_prefix, token.display_prefix);
@@ -249,7 +258,7 @@ mod tests {
     fn test_token_uniqueness() {
         let token1 = generate_token(TokenType::DeviceApiKeyLive).unwrap();
         let token2 = generate_token(TokenType::DeviceApiKeyLive).unwrap();
-        
+
         assert_ne!(token1.token, token2.token);
         assert_ne!(token1.hash, token2.hash);
     }

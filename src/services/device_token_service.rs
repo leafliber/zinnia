@@ -3,8 +3,7 @@
 use crate::db::RedisPool;
 use crate::errors::AppError;
 use crate::models::{
-    AccessTokenInfo, CreateAccessTokenRequest, CreateAccessTokenResponse,
-    DeviceAccessToken,
+    AccessTokenInfo, CreateAccessTokenRequest, CreateAccessTokenResponse, DeviceAccessToken,
 };
 use crate::repositories::{CreateTokenParams, DeviceAccessTokenRepository, DeviceRepository};
 use crate::security::{generate_token, verify_token, TokenType};
@@ -44,7 +43,8 @@ impl DeviceAccessTokenService {
         request: CreateAccessTokenRequest,
     ) -> Result<CreateAccessTokenResponse, AppError> {
         // 验证设备存在且属于该用户
-        let device = self.device_repo
+        let device = self
+            .device_repo
             .find_by_id(device_id)
             .await?
             .ok_or_else(|| AppError::NotFound("设备不存在".to_string()))?;
@@ -56,18 +56,19 @@ impl DeviceAccessTokenService {
         // 检查令牌数量限制
         let token_count = self.token_repo.count_valid_tokens(device_id).await?;
         if token_count >= MAX_TOKENS_PER_DEVICE {
-            return Err(AppError::ValidationError(
-                format!("每个设备最多只能有 {} 个有效令牌", MAX_TOKENS_PER_DEVICE)
-            ));
+            return Err(AppError::ValidationError(format!(
+                "每个设备最多只能有 {} 个有效令牌",
+                MAX_TOKENS_PER_DEVICE
+            )));
         }
 
         // 生成令牌
         let (token, token_hash, token_prefix) = self.generate_access_token()?;
 
         // 计算过期时间
-        let expires_at = request.expires_in_hours.map(|hours| {
-            Utc::now() + Duration::hours(hours)
-        });
+        let expires_at = request
+            .expires_in_hours
+            .map(|hours| Utc::now() + Duration::hours(hours));
 
         // 创建令牌记录
         let params = CreateTokenParams {
@@ -110,7 +111,7 @@ impl DeviceAccessTokenService {
         // 检查令牌格式
         let token_type = TokenType::from_token(token)
             .ok_or_else(|| AppError::Unauthorized("无效的令牌格式".to_string()))?;
-        
+
         if token_type != TokenType::DeviceAccessToken {
             return Err(AppError::Unauthorized("令牌类型不正确".to_string()));
         }
@@ -119,7 +120,8 @@ impl DeviceAccessTokenService {
         let search_prefix = crate::security::extract_search_prefix(token)?;
 
         // 查找令牌
-        let db_token = self.token_repo
+        let db_token = self
+            .token_repo
             .find_valid_by_prefix(&search_prefix)
             .await?
             .ok_or_else(|| AppError::Unauthorized("令牌无效或已过期".to_string()))?;
@@ -156,7 +158,8 @@ impl DeviceAccessTokenService {
         include_expired: bool,
     ) -> Result<Vec<AccessTokenInfo>, AppError> {
         // 验证权限
-        let device = self.device_repo
+        let device = self
+            .device_repo
             .find_by_id(device_id)
             .await?
             .ok_or_else(|| AppError::NotFound("设备不存在".to_string()))?;
@@ -165,7 +168,8 @@ impl DeviceAccessTokenService {
             return Err(AppError::Forbidden("无权查看此设备的令牌".to_string()));
         }
 
-        let tokens = self.token_repo
+        let tokens = self
+            .token_repo
             .list_by_device(device_id, include_revoked, include_expired)
             .await?;
 
@@ -173,11 +177,7 @@ impl DeviceAccessTokenService {
     }
 
     /// 吊销令牌
-    pub async fn revoke_token(
-        &self,
-        token_id: Uuid,
-        user_id: Uuid,
-    ) -> Result<(), AppError> {
+    pub async fn revoke_token(&self, token_id: Uuid, user_id: Uuid) -> Result<(), AppError> {
         // 验证权限
         if !self.token_repo.user_owns_token(token_id, user_id).await? {
             return Err(AppError::Forbidden("无权吊销此令牌".to_string()));
@@ -188,13 +188,10 @@ impl DeviceAccessTokenService {
     }
 
     /// 吊销设备的所有令牌
-    pub async fn revoke_all_tokens(
-        &self,
-        device_id: Uuid,
-        user_id: Uuid,
-    ) -> Result<u64, AppError> {
+    pub async fn revoke_all_tokens(&self, device_id: Uuid, user_id: Uuid) -> Result<u64, AppError> {
         // 验证权限
-        let device = self.device_repo
+        let device = self
+            .device_repo
             .find_by_id(device_id)
             .await?
             .ok_or_else(|| AppError::NotFound("设备不存在".to_string()))?;

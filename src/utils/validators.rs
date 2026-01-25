@@ -13,7 +13,7 @@ pub fn validate_pagination(page: i64, page_size: i64) -> Result<(), AppError> {
     if page < 1 {
         return Err(AppError::ValidationError("页码必须大于 0".to_string()));
     }
-    
+
     if !(1..=100).contains(&page_size) {
         return Err(AppError::ValidationError(
             "每页数量必须在 1-100 之间".to_string(),

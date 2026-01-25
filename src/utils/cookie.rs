@@ -3,7 +3,7 @@
 //! 提供 httpOnly cookie 的设置、清除和读取功能
 
 use actix_web::{
-    cookie::{Cookie, SameSite, time::Duration},
+    cookie::{time::Duration, Cookie, SameSite},
     HttpRequest, HttpResponse,
 };
 
@@ -64,7 +64,7 @@ impl CookieBuilder {
     pub fn production() -> Self {
         Self {
             http_only: true,
-            secure: true, // 生产环境必须 HTTPS
+            secure: true,                // 生产环境必须 HTTPS
             same_site: SameSite::Strict, // Strict 更严格
             path: COOKIE_PATH,
         }

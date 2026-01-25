@@ -2,18 +2,17 @@
 
 use crate::db::RedisPool;
 use crate::errors::AppError;
-use crate::models::{
-    ChangePasswordRequest, LoginRequest, LoginResponse, RegisterRequest,
-    UpdateUserRequest, User, UserInfo, UserListQuery, UserRole,
-    DeviceShare, SharePermission, DeviceShareInfo,
-};
-use crate::repositories::UserRepository;
-use crate::security::{hash_password, verify_password, check_password_strength, JwtManager};
 use crate::models::PaginatedResponse;
 use crate::models::Pagination;
+use crate::models::{
+    ChangePasswordRequest, DeviceShare, DeviceShareInfo, LoginRequest, LoginResponse,
+    RegisterRequest, SharePermission, UpdateUserRequest, User, UserInfo, UserListQuery, UserRole,
+};
+use crate::repositories::UserRepository;
+use crate::security::{check_password_strength, hash_password, verify_password, JwtManager};
+use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use uuid::Uuid;
-use sha2::{Sha256, Digest};
 
 /// 用户业务服务
 pub struct UserService {
@@ -45,7 +44,9 @@ impl UserService {
         // 如果提供了 confirm_password，则校验一致性
         if let Some(ref cp) = request.confirm_password {
             if cp != &request.password {
-                return Err(AppError::ValidationError("密码与确认密码不一致".to_string()));
+                return Err(AppError::ValidationError(
+                    "密码与确认密码不一致".to_string(),
+                ));
             }
         }
 
@@ -97,17 +98,21 @@ impl UserService {
 
         // 检查是否被锁定
         if self.user_repo.is_locked(user.id).await? {
-            return Err(AppError::Unauthorized("账户已被锁定，请 15 分钟后重试".to_string()));
+            return Err(AppError::Unauthorized(
+                "账户已被锁定，请 15 分钟后重试".to_string(),
+            ));
         }
 
         // 验证密码
         if !verify_password(&request.password, &user.password_hash)? {
             let attempts = self.user_repo.record_failed_login(user.id).await?;
-            
+
             if attempts >= 5 {
-                return Err(AppError::Unauthorized("登录失败次数过多，账户已被锁定 15 分钟".to_string()));
+                return Err(AppError::Unauthorized(
+                    "登录失败次数过多，账户已被锁定 15 分钟".to_string(),
+                ));
             }
-            
+
             return Err(AppError::Unauthorized("用户名或密码错误".to_string()));
         }
 
@@ -121,10 +126,9 @@ impl UserService {
             Some(user.role.to_string()),
         )?;
 
-        let refresh_token = self.jwt_manager.generate_refresh_token(
-            &user.id.to_string(),
-            None,
-        )?;
+        let refresh_token = self
+            .jwt_manager
+            .generate_refresh_token(&user.id.to_string(), None)?;
 
         // 保存刷新令牌
         let token_hash = self.hash_token(&refresh_token);
@@ -193,10 +197,9 @@ impl UserService {
             Some(user.role.to_string()),
         )?;
 
-        let new_refresh_token = self.jwt_manager.generate_refresh_token(
-            &user.id.to_string(),
-            None,
-        )?;
+        let new_refresh_token = self
+            .jwt_manager
+            .generate_refresh_token(&user.id.to_string(), None)?;
 
         // 保存新的刷新令牌
         let new_token_hash = self.hash_token(&new_refresh_token);
@@ -229,13 +232,13 @@ impl UserService {
     /// 登出所有设备
     pub async fn logout_all(&self, user_id: Uuid) -> Result<u64, AppError> {
         let count = self.user_repo.delete_all_refresh_tokens(user_id).await?;
-        
+
         tracing::info!(
             user_id = %user_id,
             sessions = count,
             "用户已登出所有设备"
         );
-        
+
         Ok(count)
     }
 
@@ -330,39 +333,35 @@ impl UserService {
         role: UserRole,
     ) -> Result<UserInfo, AppError> {
         let user = self.user_repo.update_role(user_id, role).await?;
-        
+
         tracing::info!(
             user_id = %user_id,
             role = %user.role,
             "用户角色已更新"
         );
-        
+
         Ok(user.into())
     }
 
     /// 管理员：禁用/启用用户
-    pub async fn set_user_active(
-        &self,
-        user_id: Uuid,
-        is_active: bool,
-    ) -> Result<(), AppError> {
+    pub async fn set_user_active(&self, user_id: Uuid, is_active: bool) -> Result<(), AppError> {
         self.user_repo.set_active(user_id, is_active).await?;
-        
+
         tracing::info!(
             user_id = %user_id,
             is_active = is_active,
             "用户状态已更新"
         );
-        
+
         Ok(())
     }
 
     /// 管理员：删除用户
     pub async fn delete_user(&self, user_id: Uuid) -> Result<(), AppError> {
         self.user_repo.delete(user_id).await?;
-        
+
         tracing::info!(user_id = %user_id, "用户已删除");
-        
+
         Ok(())
     }
 
@@ -426,19 +425,17 @@ impl UserService {
     }
 
     /// 取消设备共享
-    pub async fn unshare_device(
-        &self,
-        device_id: Uuid,
-        user_id: Uuid,
-    ) -> Result<(), AppError> {
-        self.user_repo.remove_device_share(device_id, user_id).await?;
-        
+    pub async fn unshare_device(&self, device_id: Uuid, user_id: Uuid) -> Result<(), AppError> {
+        self.user_repo
+            .remove_device_share(device_id, user_id)
+            .await?;
+
         tracing::info!(
             device_id = %device_id,
             user_id = %user_id,
             "设备共享已取消"
         );
-        
+
         Ok(())
     }
 
@@ -448,7 +445,7 @@ impl UserService {
         device_id: Uuid,
     ) -> Result<Vec<DeviceShareInfo>, AppError> {
         let shares = self.user_repo.get_device_shares(device_id).await?;
-        
+
         let mut share_infos = Vec::new();
         for share in shares {
             if let Some(user) = self.user_repo.find_by_id(share.user_id).await? {
@@ -460,7 +457,7 @@ impl UserService {
                 });
             }
         }
-        
+
         Ok(share_infos)
     }
 
@@ -470,7 +467,9 @@ impl UserService {
         device_id: Uuid,
         user_id: Uuid,
     ) -> Result<Option<String>, AppError> {
-        self.user_repo.check_device_permission(device_id, user_id).await
+        self.user_repo
+            .check_device_permission(device_id, user_id)
+            .await
     }
 
     /// 哈希令牌（用于存储）

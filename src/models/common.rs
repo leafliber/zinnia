@@ -1,7 +1,7 @@
 //! 通用数据结构
 
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 /// 统一 API 响应结构
 #[derive(Debug, Serialize)]
@@ -107,12 +107,12 @@ impl TimeRange {
         if self.start > self.end {
             return Err("开始时间不能晚于结束时间".to_string());
         }
-        
+
         let duration = self.end - self.start;
         if duration.num_days() > max_days {
             return Err(format!("时间范围不能超过 {} 天", max_days));
         }
-        
+
         Ok(())
     }
 }

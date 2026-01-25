@@ -9,7 +9,7 @@ mod device_token_api {
 
     // 这些测试需要完整的应用上下文，包括数据库连接
     // 在实际运行时需要设置 test fixtures
-    
+
     #[actix_web::test]
     #[ignore = "需要数据库连接"]
     async fn test_create_device_token() {
@@ -19,13 +19,13 @@ mod device_token_api {
         //         .app_data(...)
         //         .route("/api/v1/devices/{id}/tokens", web::post().to(handlers::create_device_token))
         // ).await;
-        
+
         // let req = test::TestRequest::post()
         //     .uri(&format!("/api/v1/devices/{}/tokens", device_id))
         //     .set_json(&create_request)
         //     .insert_header(("Authorization", format!("Bearer {}", token)))
         //     .to_request();
-        
+
         // let resp = test::call_service(&app, req).await;
         // assert!(resp.status().is_success());
     }

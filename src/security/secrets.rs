@@ -22,19 +22,19 @@ impl Secrets {
         Ok(Self {
             jwt_secret: SecretString::new(
                 env::var("JWT_SECRET")
-                    .map_err(|_| AppError::ConfigError("JWT_SECRET 未设置".to_string()))?
+                    .map_err(|_| AppError::ConfigError("JWT_SECRET 未设置".to_string()))?,
             ),
             encryption_key: SecretString::new(
                 env::var("ENCRYPTION_KEY")
-                    .map_err(|_| AppError::ConfigError("ENCRYPTION_KEY 未设置".to_string()))?
+                    .map_err(|_| AppError::ConfigError("ENCRYPTION_KEY 未设置".to_string()))?,
             ),
             database_url: SecretString::new(
                 env::var("DATABASE_URL")
-                    .map_err(|_| AppError::ConfigError("DATABASE_URL 未设置".to_string()))?
+                    .map_err(|_| AppError::ConfigError("DATABASE_URL 未设置".to_string()))?,
             ),
             redis_url: SecretString::new(
                 env::var("REDIS_URL")
-                    .map_err(|_| AppError::ConfigError("REDIS_URL 未设置".to_string()))?
+                    .map_err(|_| AppError::ConfigError("REDIS_URL 未设置".to_string()))?,
             ),
         })
     }

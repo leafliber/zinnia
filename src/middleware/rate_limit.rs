@@ -124,13 +124,8 @@ where
             let rate_key = format!("{}:{}", config.key_prefix, client_ip);
 
             // 执行滑动窗口限流
-            let result = check_rate_limit(
-                &redis_pool,
-                &rate_key,
-                config.requests_per_minute,
-                60,
-            )
-            .await;
+            let result =
+                check_rate_limit(&redis_pool, &rate_key, config.requests_per_minute, 60).await;
 
             match result {
                 Ok(rate_info) => {

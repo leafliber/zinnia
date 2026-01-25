@@ -74,33 +74,37 @@ pub struct AlertEvent {
 pub struct CreateAlertRuleRequest {
     #[validate(length(min = 1, max = 100, message = "规则名称长度应在 1-100 字符之间"))]
     pub name: String,
-    
+
     pub alert_type: AlertType,
     pub level: AlertLevel,
-    
+
     #[validate(range(min = 1, max = 1440, message = "冷却时间应在 1-1440 分钟之间"))]
     #[serde(default = "default_cooldown")]
     pub cooldown_minutes: i32,
-    
+
     #[serde(default = "default_enabled")]
     pub enabled: bool,
 }
 
-fn default_cooldown() -> i32 { 30 }
-fn default_enabled() -> bool { true }
+fn default_cooldown() -> i32 {
+    30
+}
+fn default_enabled() -> bool {
+    true
+}
 
 /// 更新预警规则请求
 #[derive(Debug, Clone, Deserialize, Validate)]
 pub struct UpdateAlertRuleRequest {
     #[validate(length(min = 1, max = 100, message = "规则名称长度应在 1-100 字符之间"))]
     pub name: Option<String>,
-    
+
     pub alert_type: Option<AlertType>,
     pub level: Option<AlertLevel>,
-    
+
     #[validate(range(min = 1, max = 1440, message = "冷却时间应在 1-1440 分钟之间"))]
     pub cooldown_minutes: Option<i32>,
-    
+
     pub enabled: Option<bool>,
 }
 
@@ -117,15 +121,19 @@ pub struct AlertListQuery {
     pub level: Option<AlertLevel>,
     pub status: Option<AlertStatus>,
     pub alert_type: Option<AlertType>,
-    
+
     #[validate(range(min = 1, max = 100, message = "每页数量应在 1-100 之间"))]
     #[serde(default = "default_page_size")]
     pub page_size: i64,
-    
+
     #[validate(range(min = 1, message = "页码应大于 0"))]
     #[serde(default = "default_page")]
     pub page: i64,
 }
 
-fn default_page_size() -> i64 { 20 }
-fn default_page() -> i64 { 1 }
+fn default_page_size() -> i64 {
+    20
+}
+fn default_page() -> i64 {
+    1
+}

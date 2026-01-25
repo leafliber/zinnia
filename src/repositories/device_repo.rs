@@ -80,24 +80,20 @@ impl DeviceRepository {
 
     /// 根据 ID 查找设备
     pub async fn find_by_id(&self, id: Uuid) -> Result<Option<Device>, AppError> {
-        let device = sqlx::query_as::<_, Device>(
-            "SELECT * FROM devices WHERE id = $1",
-        )
-        .bind(id)
-        .fetch_optional(self.pool.pool())
-        .await?;
+        let device = sqlx::query_as::<_, Device>("SELECT * FROM devices WHERE id = $1")
+            .bind(id)
+            .fetch_optional(self.pool.pool())
+            .await?;
 
         Ok(device)
     }
 
     /// 根据 API Key 前缀查找设备
     pub async fn find_by_api_key_prefix(&self, prefix: &str) -> Result<Option<Device>, AppError> {
-        let device = sqlx::query_as::<_, Device>(
-            "SELECT * FROM devices WHERE api_key_prefix = $1",
-        )
-        .bind(prefix)
-        .fetch_optional(self.pool.pool())
-        .await?;
+        let device = sqlx::query_as::<_, Device>("SELECT * FROM devices WHERE api_key_prefix = $1")
+            .bind(prefix)
+            .fetch_optional(self.pool.pool())
+            .await?;
 
         Ok(device)
     }
@@ -131,12 +127,10 @@ impl DeviceRepository {
 
     /// 更新设备最后在线时间
     pub async fn update_last_seen(&self, id: Uuid) -> Result<(), AppError> {
-        sqlx::query(
-            "UPDATE devices SET last_seen_at = NOW(), status = 'online' WHERE id = $1",
-        )
-        .bind(id)
-        .execute(self.pool.pool())
-        .await?;
+        sqlx::query("UPDATE devices SET last_seen_at = NOW(), status = 'online' WHERE id = $1")
+            .bind(id)
+            .execute(self.pool.pool())
+            .await?;
 
         Ok(())
     }
@@ -176,15 +170,15 @@ impl DeviceRepository {
 
         // 构建查询条件
         let mut conditions = vec!["1=1".to_string()];
-        
+
         if let Some(ref status) = query.status {
             conditions.push(format!("status = '{:?}'", status).to_lowercase());
         }
-        
+
         if let Some(ref device_type) = query.device_type {
             conditions.push(format!("device_type = '{}'", device_type));
         }
-        
+
         // 按所有者筛选
         if let Some(owner_id) = query.owner_id {
             if query.include_shared {
@@ -223,12 +217,11 @@ impl DeviceRepository {
 
     /// 获取设备配置
     pub async fn get_config(&self, device_id: Uuid) -> Result<Option<DeviceConfig>, AppError> {
-        let config = sqlx::query_as::<_, DeviceConfig>(
-            "SELECT * FROM device_configs WHERE device_id = $1",
-        )
-        .bind(device_id)
-        .fetch_optional(self.pool.pool())
-        .await?;
+        let config =
+            sqlx::query_as::<_, DeviceConfig>("SELECT * FROM device_configs WHERE device_id = $1")
+                .bind(device_id)
+                .fetch_optional(self.pool.pool())
+                .await?;
 
         Ok(config)
     }
@@ -281,25 +274,22 @@ impl DeviceRepository {
 
     /// 检查用户是否拥有设备
     pub async fn user_owns_device(&self, device_id: Uuid, user_id: Uuid) -> Result<bool, AppError> {
-        let result: Option<(i32,)> = sqlx::query_as(
-            "SELECT 1 FROM devices WHERE id = $1 AND owner_id = $2",
-        )
-        .bind(device_id)
-        .bind(user_id)
-        .fetch_optional(self.pool.pool())
-        .await?;
+        let result: Option<(i32,)> =
+            sqlx::query_as("SELECT 1 FROM devices WHERE id = $1 AND owner_id = $2")
+                .bind(device_id)
+                .bind(user_id)
+                .fetch_optional(self.pool.pool())
+                .await?;
 
         Ok(result.is_some())
     }
 
     /// 获取用户拥有的设备数量
     pub async fn count_user_devices(&self, user_id: Uuid) -> Result<i64, AppError> {
-        let result: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM devices WHERE owner_id = $1",
-        )
-        .bind(user_id)
-        .fetch_one(self.pool.pool())
-        .await?;
+        let result: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM devices WHERE owner_id = $1")
+            .bind(user_id)
+            .fetch_one(self.pool.pool())
+            .await?;
 
         Ok(result.0)
     }

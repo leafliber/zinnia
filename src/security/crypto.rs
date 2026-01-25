@@ -1,9 +1,9 @@
 //! 加密解密工具
 
 use crate::errors::AppError;
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use ring::aead::{self, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 use ring::rand::{SecureRandom, SystemRandom};
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
 /// 加密上下文
 pub struct CryptoContext {
@@ -67,9 +67,9 @@ impl CryptoContext {
 
         let (nonce_bytes, encrypted) = ciphertext.split_at(12);
         let nonce = Nonce::assume_unique_for_key(
-            nonce_bytes.try_into().map_err(|_| {
-                AppError::InternalError("Nonce 格式错误".to_string())
-            })?,
+            nonce_bytes
+                .try_into()
+                .map_err(|_| AppError::InternalError("Nonce 格式错误".to_string()))?,
         );
 
         let mut in_out = encrypted.to_vec();

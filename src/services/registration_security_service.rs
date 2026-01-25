@@ -1,5 +1,5 @@
 //! 注册安全服务模块
-//! 
+//!
 //! 提供注册过程中的安全检查，包括 IP 频率限制、恶意行为检测等
 
 use crate::config::{RegistrationSettings, Settings};
@@ -57,7 +57,7 @@ impl RegistrationSecurityService {
         // 检查是否是可疑 IP
         let suspicious_key = self.get_suspicious_key(ip);
         let is_suspicious: Option<bool> = self.redis_pool.get(&suspicious_key).await?;
-        
+
         if is_suspicious == Some(true) {
             return Ok(RegistrationCheckResult {
                 allowed: false,
@@ -78,7 +78,10 @@ impl RegistrationSecurityService {
         let daily_count = daily_count.unwrap_or(0);
 
         // 计算剩余次数
-        let remaining_hourly = self.settings.max_per_ip_per_hour.saturating_sub(hourly_count);
+        let remaining_hourly = self
+            .settings
+            .max_per_ip_per_hour
+            .saturating_sub(hourly_count);
         let remaining_daily = self.settings.max_per_ip_per_day.saturating_sub(daily_count);
 
         // 检查是否超限
@@ -117,17 +120,22 @@ impl RegistrationSecurityService {
         let hourly_count: Option<u32> = self.redis_pool.get(&hourly_key).await?;
         let new_hourly = hourly_count.unwrap_or(0) + 1;
         // 设置 1 小时过期
-        self.redis_pool.set_ex(&hourly_key, &new_hourly, 3600).await?;
+        self.redis_pool
+            .set_ex(&hourly_key, &new_hourly, 3600)
+            .await?;
 
         // 增加日级计数
         let daily_key = self.get_daily_key(ip);
         let daily_count: Option<u32> = self.redis_pool.get(&daily_key).await?;
         let new_daily = daily_count.unwrap_or(0) + 1;
         // 设置 24 小时过期
-        self.redis_pool.set_ex(&daily_key, &new_daily, 86400).await?;
+        self.redis_pool
+            .set_ex(&daily_key, &new_daily, 86400)
+            .await?;
 
         // 检测可疑行为
-        self.detect_suspicious_behavior(ip, new_hourly, new_daily).await?;
+        self.detect_suspicious_behavior(ip, new_hourly, new_daily)
+            .await?;
 
         tracing::info!(
             ip = %ip,
@@ -153,8 +161,10 @@ impl RegistrationSecurityService {
         if hourly_count >= hourly_threshold || daily_count >= daily_threshold {
             let suspicious_key = self.get_suspicious_key(ip);
             // 设置可疑标记，24 小时后自动解除
-            self.redis_pool.set_ex(&suspicious_key, &true, 86400).await?;
-            
+            self.redis_pool
+                .set_ex(&suspicious_key, &true, 86400)
+                .await?;
+
             tracing::warn!(
                 ip = %ip,
                 hourly_count = hourly_count,
@@ -169,10 +179,12 @@ impl RegistrationSecurityService {
     /// 标记 IP 为可疑
     pub async fn mark_suspicious(&self, ip: &str, duration_hours: u64) -> Result<(), AppError> {
         let suspicious_key = self.get_suspicious_key(ip);
-        self.redis_pool.set_ex(&suspicious_key, &true, duration_hours * 3600).await?;
-        
+        self.redis_pool
+            .set_ex(&suspicious_key, &true, duration_hours * 3600)
+            .await?;
+
         tracing::warn!(ip = %ip, duration_hours = duration_hours, "手动标记 IP 为可疑");
-        
+
         Ok(())
     }
 
@@ -180,9 +192,9 @@ impl RegistrationSecurityService {
     pub async fn clear_suspicious(&self, ip: &str) -> Result<(), AppError> {
         let suspicious_key = self.get_suspicious_key(ip);
         self.redis_pool.del(&suspicious_key).await?;
-        
+
         tracing::info!(ip = %ip, "解除 IP 可疑标记");
-        
+
         Ok(())
     }
 

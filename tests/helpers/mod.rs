@@ -10,10 +10,7 @@ pub fn test_uuid() -> Uuid {
 
 /// 生成固定的测试 UUID（用于可重复测试）
 pub fn fixed_uuid(seed: u8) -> Uuid {
-    Uuid::from_bytes([
-        seed, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, seed,
-    ])
+    Uuid::from_bytes([seed, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, seed])
 }
 
 /// 获取当前时间

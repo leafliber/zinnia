@@ -104,5 +104,9 @@ pub struct AuditLogQuery {
     pub page: i64,
 }
 
-fn default_page_size() -> i64 { 50 }
-fn default_page() -> i64 { 1 }
+fn default_page_size() -> i64 {
+    50
+}
+fn default_page() -> i64 {
+    1
+}

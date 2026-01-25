@@ -56,12 +56,10 @@ impl AuditRepository {
         let _where_clause = conditions.join(" AND ");
 
         // 简化查询（实际应使用参数化构建）
-        let logs = sqlx::query_as::<_, AuditLog>(
-            &format!(
-                "SELECT * FROM audit_logs WHERE {} ORDER BY timestamp DESC LIMIT $1 OFFSET $2",
-                "1=1" // 简化，实际需要完整条件
-            ),
-        )
+        let logs = sqlx::query_as::<_, AuditLog>(&format!(
+            "SELECT * FROM audit_logs WHERE {} ORDER BY timestamp DESC LIMIT $1 OFFSET $2",
+            "1=1" // 简化，实际需要完整条件
+        ))
         .bind(query.page_size)
         .bind(offset)
         .fetch_all(self.pool.pool())
@@ -76,12 +74,11 @@ impl AuditRepository {
 
     /// 删除过期审计日志
     pub async fn delete_expired(&self, retention_days: i32) -> Result<u64, AppError> {
-        let result = sqlx::query(
-            "DELETE FROM audit_logs WHERE timestamp < NOW() - INTERVAL '1 day' * $1",
-        )
-        .bind(retention_days)
-        .execute(self.pool.pool())
-        .await?;
+        let result =
+            sqlx::query("DELETE FROM audit_logs WHERE timestamp < NOW() - INTERVAL '1 day' * $1")
+                .bind(retention_days)
+                .execute(self.pool.pool())
+                .await?;
 
         Ok(result.rows_affected())
     }

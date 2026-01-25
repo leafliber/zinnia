@@ -30,19 +30,20 @@ pub async fn create_device_token(
     auth: web::ReqData<AuthInfo>,
 ) -> Result<HttpResponse, AppError> {
     let device_id = path.into_inner();
-    
+
     // 需要用户认证
-    let user_id = auth.user_id
+    let user_id = auth
+        .user_id
         .ok_or_else(|| AppError::Unauthorized("需要用户认证".to_string()))?;
-    
+
     // 验证请求
     body.validate()
         .map_err(|e| AppError::ValidationError(e.to_string()))?;
-    
+
     let response = token_service
         .create_token(device_id, user_id, body.into_inner())
         .await?;
-    
+
     Ok(HttpResponse::Created().json(ApiResponse::created(response)))
 }
 
@@ -55,15 +56,21 @@ pub async fn list_device_tokens(
     auth: web::ReqData<AuthInfo>,
 ) -> Result<HttpResponse, AppError> {
     let device_id = path.into_inner();
-    
+
     // 需要用户认证
-    let user_id = auth.user_id
+    let user_id = auth
+        .user_id
         .ok_or_else(|| AppError::Unauthorized("需要用户认证".to_string()))?;
-    
+
     let tokens = token_service
-        .list_tokens(device_id, user_id, query.include_revoked, query.include_expired)
+        .list_tokens(
+            device_id,
+            user_id,
+            query.include_revoked,
+            query.include_expired,
+        )
         .await?;
-    
+
     Ok(HttpResponse::Ok().json(ApiResponse::success(tokens)))
 }
 
@@ -75,13 +82,14 @@ pub async fn revoke_device_token(
     auth: web::ReqData<AuthInfo>,
 ) -> Result<HttpResponse, AppError> {
     let (_device_id, token_id) = path.into_inner();
-    
+
     // 需要用户认证
-    let user_id = auth.user_id
+    let user_id = auth
+        .user_id
         .ok_or_else(|| AppError::Unauthorized("需要用户认证".to_string()))?;
-    
+
     token_service.revoke_token(token_id, user_id).await?;
-    
+
     Ok(HttpResponse::Ok().json(ApiResponse::<()>::success_message("令牌已吊销")))
 }
 
@@ -94,15 +102,18 @@ pub async fn revoke_all_device_tokens(
     auth: web::ReqData<AuthInfo>,
 ) -> Result<HttpResponse, AppError> {
     let device_id = path.into_inner();
-    
+
     // 需要用户认证
-    let user_id = auth.user_id
+    let user_id = auth
+        .user_id
         .ok_or_else(|| AppError::Unauthorized("需要用户认证".to_string()))?;
-    
+
     let count = token_service.revoke_all_tokens(device_id, user_id).await?;
-    
-    Ok(HttpResponse::Ok().json(ApiResponse::success(serde_json::json!({
-        "revoked_count": count,
-        "message": format!("已吊销 {} 个令牌", count)
-    }))))
+
+    Ok(
+        HttpResponse::Ok().json(ApiResponse::success(serde_json::json!({
+            "revoked_count": count,
+            "message": format!("已吊销 {} 个令牌", count)
+        }))),
+    )
 }

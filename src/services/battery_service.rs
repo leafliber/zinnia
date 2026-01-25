@@ -116,7 +116,11 @@ impl BatteryService {
     pub async fn get_latest(&self, device_id: Uuid) -> Result<LatestBatteryResponse, AppError> {
         // 先尝试从缓存获取
         let cache_key = format!("battery:latest:{}", device_id);
-        if let Some(cached) = self.redis_pool.get::<LatestBatteryResponse>(&cache_key).await? {
+        if let Some(cached) = self
+            .redis_pool
+            .get::<LatestBatteryResponse>(&cache_key)
+            .await?
+        {
             return Ok(cached);
         }
 
@@ -156,7 +160,9 @@ impl BatteryService {
         device_id: Uuid,
         request: BatteryQueryRequest,
     ) -> Result<Vec<BatteryData>, AppError> {
-        self.battery_repo.query_by_time_range(device_id, &request).await
+        self.battery_repo
+            .query_by_time_range(device_id, &request)
+            .await
     }
 
     /// 获取聚合统计
@@ -179,11 +185,17 @@ impl BatteryService {
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
     ) -> Result<BatteryStatsResponse, AppError> {
-        self.battery_repo.get_stats(device_id, start_time, end_time).await
+        self.battery_repo
+            .get_stats(device_id, start_time, end_time)
+            .await
     }
 
     /// 更新最新电量缓存
-    async fn update_latest_cache(&self, device_id: Uuid, data: &BatteryData) -> Result<(), AppError> {
+    async fn update_latest_cache(
+        &self,
+        device_id: Uuid,
+        data: &BatteryData,
+    ) -> Result<(), AppError> {
         let config = self
             .device_repo
             .get_config(device_id)
@@ -235,11 +247,21 @@ impl BatteryService {
         // 检查低电量预警
         if data.battery_level < config.critical_battery_threshold && !data.is_charging {
             self.alert_service
-                .trigger_critical_battery(device_id, user_id, data.battery_level as f64, config.critical_battery_threshold as f64)
+                .trigger_critical_battery(
+                    device_id,
+                    user_id,
+                    data.battery_level as f64,
+                    config.critical_battery_threshold as f64,
+                )
                 .await?;
         } else if data.battery_level < config.low_battery_threshold && !data.is_charging {
             self.alert_service
-                .trigger_low_battery(device_id, user_id, data.battery_level as f64, config.low_battery_threshold as f64)
+                .trigger_low_battery(
+                    device_id,
+                    user_id,
+                    data.battery_level as f64,
+                    config.low_battery_threshold as f64,
+                )
                 .await?;
         }
 
@@ -247,7 +269,12 @@ impl BatteryService {
         if let Some(temp) = data.temperature {
             if temp > config.high_temperature_threshold {
                 self.alert_service
-                    .trigger_high_temperature(device_id, user_id, temp, config.high_temperature_threshold)
+                    .trigger_high_temperature(
+                        device_id,
+                        user_id,
+                        temp,
+                        config.high_temperature_threshold,
+                    )
                     .await?;
             }
         }

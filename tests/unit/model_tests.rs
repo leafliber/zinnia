@@ -2,15 +2,13 @@
 
 use chrono::{Duration, Utc};
 use uuid::Uuid;
-use zinnia::models::{
-    DeviceAccessToken, TokenPermission, CreateAccessTokenRequest,
-};
+use zinnia::models::{CreateAccessTokenRequest, DeviceAccessToken, TokenPermission};
 
 mod device_access_token {
     use super::*;
 
     fn create_test_token(
-        is_revoked: bool, 
+        is_revoked: bool,
         expires_at: Option<chrono::DateTime<chrono::Utc>>,
         permission: TokenPermission,
         allowed_ips: Option<Vec<String>>,
@@ -63,7 +61,10 @@ mod device_access_token {
     #[test]
     fn test_is_ip_allowed_no_restriction() {
         let token = create_test_token(false, None, TokenPermission::All, None);
-        assert!(token.is_ip_allowed("192.168.1.1"), "无 IP 限制时应允许所有 IP");
+        assert!(
+            token.is_ip_allowed("192.168.1.1"),
+            "无 IP 限制时应允许所有 IP"
+        );
         assert!(token.is_ip_allowed("10.0.0.1"));
     }
 
@@ -77,7 +78,7 @@ mod device_access_token {
     fn test_is_ip_allowed_in_whitelist() {
         let allowed = vec!["192.168.1.1".to_string(), "10.0.0.1".to_string()];
         let token = create_test_token(false, None, TokenPermission::All, Some(allowed));
-        
+
         assert!(token.is_ip_allowed("192.168.1.1"), "白名单中的 IP 应被允许");
         assert!(token.is_ip_allowed("10.0.0.1"));
     }
@@ -86,8 +87,11 @@ mod device_access_token {
     fn test_is_ip_allowed_not_in_whitelist() {
         let allowed = vec!["192.168.1.1".to_string()];
         let token = create_test_token(false, None, TokenPermission::All, Some(allowed));
-        
-        assert!(!token.is_ip_allowed("192.168.1.2"), "不在白名单中的 IP 应被拒绝");
+
+        assert!(
+            !token.is_ip_allowed("192.168.1.2"),
+            "不在白名单中的 IP 应被拒绝"
+        );
     }
 
     #[test]
@@ -95,7 +99,7 @@ mod device_access_token {
         let read_token = create_test_token(false, None, TokenPermission::Read, None);
         let write_token = create_test_token(false, None, TokenPermission::Write, None);
         let all_token = create_test_token(false, None, TokenPermission::All, None);
-        
+
         assert!(read_token.can_read(), "Read 权限应允许读取");
         assert!(!write_token.can_read(), "Write 权限不应允许读取");
         assert!(all_token.can_read(), "All 权限应允许读取");
@@ -106,7 +110,7 @@ mod device_access_token {
         let read_token = create_test_token(false, None, TokenPermission::Read, None);
         let write_token = create_test_token(false, None, TokenPermission::Write, None);
         let all_token = create_test_token(false, None, TokenPermission::All, None);
-        
+
         assert!(!read_token.can_write(), "Read 权限不应允许写入");
         assert!(write_token.can_write(), "Write 权限应允许写入");
         assert!(all_token.can_write(), "All 权限应允许写入");
@@ -143,7 +147,7 @@ mod create_access_token_request {
             allowed_ips: None,
             rate_limit_per_minute: None,
         };
-        
+
         assert!(request.validate().is_ok());
     }
 
@@ -156,7 +160,7 @@ mod create_access_token_request {
             allowed_ips: None,
             rate_limit_per_minute: None,
         };
-        
+
         assert!(request.validate().is_err(), "空名称应验证失败");
     }
 
@@ -169,7 +173,7 @@ mod create_access_token_request {
             allowed_ips: None,
             rate_limit_per_minute: None,
         };
-        
+
         assert!(request.validate().is_err(), "过长名称应验证失败");
     }
 
@@ -182,7 +186,7 @@ mod create_access_token_request {
             allowed_ips: None,
             rate_limit_per_minute: None,
         };
-        
+
         assert!(request.validate().is_err(), "过期时间为 0 应验证失败");
     }
 
@@ -195,7 +199,7 @@ mod create_access_token_request {
             allowed_ips: None,
             rate_limit_per_minute: None,
         };
-        
+
         assert!(request.validate().is_err(), "过期时间超过 1 年应验证失败");
     }
 
@@ -208,7 +212,7 @@ mod create_access_token_request {
             allowed_ips: None,
             rate_limit_per_minute: None,
         };
-        
+
         assert!(request.validate().is_ok(), "无过期时间应验证通过");
     }
 }

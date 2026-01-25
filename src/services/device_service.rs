@@ -26,14 +26,23 @@ impl DeviceService {
     }
 
     /// 注册新设备
-    pub async fn register(&self, request: CreateDeviceRequest, owner_id: Option<Uuid>) -> Result<CreateDeviceResponse, AppError> {
+    pub async fn register(
+        &self,
+        request: CreateDeviceRequest,
+        owner_id: Option<Uuid>,
+    ) -> Result<CreateDeviceResponse, AppError> {
         // 生成 API Key（使用统一的 token 模块）
         let token_result = generate_token(TokenType::DeviceApiKeyLive)?;
 
         // 创建设备
         let device = self
             .device_repo
-            .create(&request, &token_result.hash, &token_result.display_prefix, owner_id)
+            .create(
+                &request,
+                &token_result.hash,
+                &token_result.display_prefix,
+                owner_id,
+            )
             .await?;
 
         // 获取默认配置
@@ -111,7 +120,10 @@ impl DeviceService {
     }
 
     /// 查询设备列表
-    pub async fn list(&self, query: DeviceListQuery) -> Result<PaginatedResponse<Device>, AppError> {
+    pub async fn list(
+        &self,
+        query: DeviceListQuery,
+    ) -> Result<PaginatedResponse<Device>, AppError> {
         let (devices, total) = self.device_repo.list(&query).await?;
 
         let pagination = Pagination::new(query.page, query.page_size, total);

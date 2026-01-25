@@ -3,7 +3,8 @@
 use crate::errors::AppError;
 use crate::middleware::AuthInfo;
 use crate::models::{
-    AlertListQuery, ApiResponse, CreateAlertRuleRequest, UpdateAlertRuleRequest, UpdateAlertStatusRequest,
+    AlertListQuery, ApiResponse, CreateAlertRuleRequest, UpdateAlertRuleRequest,
+    UpdateAlertStatusRequest,
 };
 use crate::services::AlertService;
 use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
@@ -12,7 +13,7 @@ use uuid::Uuid;
 use validator::Validate;
 
 /// 创建预警规则
- pub async fn create_alert_rule(
+pub async fn create_alert_rule(
     req: HttpRequest,
     alert_service: web::Data<Arc<AlertService>>,
     body: web::Json<CreateAlertRuleRequest>,
@@ -27,12 +28,14 @@ use validator::Validate;
         .get::<AuthInfo>()
         .cloned()
         .ok_or_else(|| AppError::Unauthorized("未认证".to_string()))?;
-    
+
     let user_id = auth_info
         .user_id
         .ok_or_else(|| AppError::Forbidden("仅限用户可创建预警规则".to_string()))?;
 
-    let rule = alert_service.create_rule(user_id, body.into_inner()).await?;
+    let rule = alert_service
+        .create_rule(user_id, body.into_inner())
+        .await?;
 
     Ok(HttpResponse::Created().json(ApiResponse::created(rule)))
 }
@@ -47,7 +50,7 @@ pub async fn list_alert_rules(
         .get::<AuthInfo>()
         .cloned()
         .ok_or_else(|| AppError::Unauthorized("未认证".to_string()))?;
-    
+
     let user_id = auth_info
         .user_id
         .ok_or_else(|| AppError::Forbidden("仅限用户可查看预警规则".to_string()))?;
@@ -75,12 +78,14 @@ pub async fn update_alert_rule(
         .get::<AuthInfo>()
         .cloned()
         .ok_or_else(|| AppError::Unauthorized("未认证".to_string()))?;
-    
+
     let user_id = auth_info
         .user_id
         .ok_or_else(|| AppError::Forbidden("仅限用户可更新预警规则".to_string()))?;
 
-    let rule = alert_service.update_rule(rule_id, user_id, body.into_inner()).await?;
+    let rule = alert_service
+        .update_rule(rule_id, user_id, body.into_inner())
+        .await?;
 
     Ok(HttpResponse::Ok().json(ApiResponse::success(rule)))
 }
@@ -98,7 +103,7 @@ pub async fn delete_alert_rule(
         .get::<AuthInfo>()
         .cloned()
         .ok_or_else(|| AppError::Unauthorized("未认证".to_string()))?;
-    
+
     let user_id = auth_info
         .user_id
         .ok_or_else(|| AppError::Forbidden("仅限用户可删除预警规则".to_string()))?;
@@ -124,7 +129,7 @@ pub async fn list_alert_events(
         .get::<AuthInfo>()
         .cloned()
         .ok_or_else(|| AppError::Unauthorized("未认证".to_string()))?;
-    
+
     let user_id = auth_info
         .user_id
         .ok_or_else(|| AppError::Forbidden("仅限用户可查看预警事件".to_string()))?;
@@ -147,7 +152,7 @@ pub async fn acknowledge_alert(
         .get::<AuthInfo>()
         .cloned()
         .ok_or_else(|| AppError::Unauthorized("未认证".to_string()))?;
-    
+
     let user_id = auth_info
         .user_id
         .ok_or_else(|| AppError::Forbidden("仅限用户可操作预警".to_string()))?;
@@ -170,7 +175,7 @@ pub async fn resolve_alert(
         .get::<AuthInfo>()
         .cloned()
         .ok_or_else(|| AppError::Unauthorized("未认证".to_string()))?;
-    
+
     let user_id = auth_info
         .user_id
         .ok_or_else(|| AppError::Forbidden("仅限用户可操作预警".to_string()))?;
@@ -194,12 +199,14 @@ pub async fn update_alert_status(
         .get::<AuthInfo>()
         .cloned()
         .ok_or_else(|| AppError::Unauthorized("未认证".to_string()))?;
-    
+
     let user_id = auth_info
         .user_id
         .ok_or_else(|| AppError::Forbidden("仅限用户可操作预警".to_string()))?;
 
-    let event = alert_service.update_status(event_id, user_id, body.into_inner()).await?;
+    let event = alert_service
+        .update_status(event_id, user_id, body.into_inner())
+        .await?;
 
     Ok(HttpResponse::Ok().json(ApiResponse::success(event)))
 }
@@ -213,8 +220,10 @@ pub async fn count_active_alerts(
 
     let count = alert_service.count_active(device_id).await?;
 
-    Ok(HttpResponse::Ok().json(ApiResponse::success(serde_json::json!({
-        "device_id": device_id,
-        "active_alerts": count
-    }))))
+    Ok(
+        HttpResponse::Ok().json(ApiResponse::success(serde_json::json!({
+            "device_id": device_id,
+            "active_alerts": count
+        }))),
+    )
 }

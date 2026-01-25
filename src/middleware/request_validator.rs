@@ -1,11 +1,11 @@
 //! 请求验证中间件
 
+use crate::errors::AppError;
 use actix_web::{
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
     http::header::CONTENT_TYPE,
     Error,
 };
-use crate::errors::AppError;
 use futures::future::{ok, LocalBoxFuture, Ready};
 use std::rc::Rc;
 
@@ -124,10 +124,9 @@ where
                 } else {
                     // 检查是否有请求体
                     if req.headers().contains_key("Content-Length") {
-                        return Err(AppError::ValidationError(
-                            "缺少 Content-Type 头".to_string(),
-                        )
-                        .into());
+                        return Err(
+                            AppError::ValidationError("缺少 Content-Type 头".to_string()).into(),
+                        );
                     }
                 }
             }

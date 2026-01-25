@@ -69,7 +69,10 @@ impl DeviceAccessTokenRepository {
     }
 
     /// 根据令牌前缀查找（用于认证）
-    pub async fn find_by_prefix(&self, prefix: &str) -> Result<Option<DeviceAccessToken>, AppError> {
+    pub async fn find_by_prefix(
+        &self,
+        prefix: &str,
+    ) -> Result<Option<DeviceAccessToken>, AppError> {
         let token = sqlx::query_as::<_, DeviceAccessToken>(
             "SELECT * FROM device_access_tokens WHERE token_prefix = $1",
         )
@@ -81,7 +84,10 @@ impl DeviceAccessTokenRepository {
     }
 
     /// 查找有效的令牌（未过期、未吊销）
-    pub async fn find_valid_by_prefix(&self, prefix: &str) -> Result<Option<DeviceAccessToken>, AppError> {
+    pub async fn find_valid_by_prefix(
+        &self,
+        prefix: &str,
+    ) -> Result<Option<DeviceAccessToken>, AppError> {
         let token = sqlx::query_as::<_, DeviceAccessToken>(
             r#"
             SELECT * FROM device_access_tokens 
